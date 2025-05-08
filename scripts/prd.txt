@@ -1,0 +1,242 @@
+<context>
+# Overview
+This project, the "Personal Networking Hub Web Application," aims to build a software tool that automates in-depth research into alumni from specified educational institutions (Questrom, University School) and product managers based in New York City, and provides a dedicated web interface for managing these leads. It solves the problem of highly time-consuming and repetitive manual research for job and networking leads. This tool is for a proactive job seeker, likely with a product management focus and technical aptitude, who is an alumnus of the specified schools and targeting opportunities in NYC. It's valuable because it automates tedious research, provides curated and contextualized leads within a manageable web application, saves significant time, and allows for a more strategic and efficient approach to job searching and networking.
+
+# Core Features
+- LinkedIn Data Acquisition (Alumni & NYC PMs)
+  - What it does: Automatically searches and extracts public data from LinkedIn profiles of alumni from Questrom and University School, as well as Product Managers working in New York City. Key data includes name, profile URL, current role, company, and location.
+  - Why it's important: This is the primary source of raw lead data, forming the foundation for all subsequent curation and contextualization.
+  - How it works at a high level: Utilizes web scraping techniques, either through a browser automation tool like Selenium or by leveraging third-party scraping APIs (e.g., SerpApi, Scrapingdog), to parse public LinkedIn search result pages or profiles.
+
+- Internal Lead Database
+  - What it does: Stores all scraped and processed lead data in a local, internal database (e.g., SQLite). This database will serve as the single source of truth for the web application.
+  - Why it's important: Provides persistent, structured storage for leads, enabling efficient retrieval, filtering, and management through the web application.
+  - How it works at a high level: A database schema will be defined. Python scripts will interact with the database (e.g., using SQLAlchemy or direct SQLite commands) to insert, update, and query lead data.
+
+- Web Application (Backend & Frontend)
+  - What it does: Provides a user interface for the user (you) to view, filter, sort, and manage networking leads. It will consist of a backend API to serve data from the internal database and a frontend to display it.
+  - Why it's important: This is the primary way the user will interact with and benefit from the collected leads, replacing manual tracking methods.
+  - How it works at a high level:
+    - Backend: A Python web framework (e.g., Flask, FastAPI, or Streamlit if it handles all backend needs) will expose API endpoints. These endpoints will query the internal database and return lead data.
+    - Frontend: Built using Streamlit (for rapid development) or a custom HTML/CSS/JavaScript stack. It will consume data from the backend API and present it in tables, allow filtering, and potentially allow status updates/note-taking directly.
+
+- Company Page Information Retrieval
+  - What it does: Optionally fetches basic public information about a lead's current company, such as company size (employee count), industry, and a brief overview of its product focus or mission. This data is stored in the internal database alongside the lead.
+  - Why it's important: Provides valuable contextual insights about the companies where leads are employed, helping the user assess fit and tailor outreach.
+  - How it works at a high level: Involves a secondary scraping operation targeting LinkedIn company pages or other public business directories, contingent on successful company identification from the lead's profile.
+
+- Job Board Integration (Lever & Greenhouse)
+  - What it does: Cross-references identified individuals or their companies with open product management roles in New York City by integrating with Lever and Greenhouse job board APIs. This information enriches the lead data stored in the internal database.
+  - Why it's important: Directly connects leads with potential job opportunities, making the research immediately actionable.
+  - How it works at a high level: Makes API calls to Lever and Greenhouse, queries for relevant job postings, and stores relevant job links or details with the corresponding lead in the internal database.
+
+- Lead Curation & Filtering Logic
+  - What it does: Applies predefined filters to the raw data (before or after database insertion) to refine it into a list of qualified leads. Filters include criteria like mid-level PM roles, alma mater match (Questrom, University School), and location (NYC). These filters will be exposed through the web application.
+  - Why it's important: Ensures the user receives a manageable and highly relevant list of leads, reducing information overload and focusing efforts.
+  - How it works at a high level: Programmatically evaluates each collected lead against the user-defined criteria. Filtering can be applied by the web application when querying the database.
+
+- Contextual Insight Generation
+  - What it does: Enriches curated leads (stored in the database) with additional contextual information, such as mutual connections (if discoverable), company product focus, company size, and links to open PM roles at the lead's company.
+  - Why it's important: Provides a richer understanding of each lead, aiding in prioritization and enabling more personalized and effective outreach via the web application.
+  - How it works at a high level: Consolidates information gathered from LinkedIn scraping, company page scraping, and job board API integrations for each qualified lead, storing it in the internal database.
+
+- Data Export & Presentation (Primary: Web Application; Optional: Notion, .txt file)
+  - What it does: Makes the curated leads and their contextual information available to the user primarily through the dedicated Web Application. Optional export to a Notion database or a plain text (.txt) file can be considered as secondary features.
+  - Why it's important: Offers a primary, interactive way to manage leads, with flexible backup/alternative export options.
+  - How it works at a high level:
+    - Web Application: The core method of interaction.
+    - Notion Export (Optional): Uses the Notion API to create and populate database items from the internal database.
+    - .txt File Export (Optional): Uses standard Python file I/O operations to write data from the internal database to a .txt file.
+
+# User Experience
+- User Personas:
+  - The primary user is a proactive individual focused on career development, specifically targeting mid-level Product Management roles in New York City. They are an alumnus of Questrom and/or University School. They are tech-savvy, comfortable with tools like LinkedIn, and looking for an efficient way to manage their networking leads.
+
+- Key User Flows:
+  - Configuration: User sets up the tool by providing necessary inputs: LinkedIn search parameters, API keys (for job boards if needed).
+  - Automated Research Execution: User initiates a research run. The tool then autonomously performs data acquisition:
+    - Scrapes LinkedIn for alumni and NYC PMs.
+    - (Optional) Scrapes company pages for details.
+    - Queries Lever and Greenhouse for open PM roles at identified companies.
+    - Stores all data in the internal database.
+  - Lead Review & Management (Web Application):
+    - User launches the local web application.
+    - Views leads in a tabular or list format.
+    - Uses filters (role, alma mater, location, connection points) to narrow down leads.
+    - Clicks on a lead to see detailed information (including contextual insights and job postings).
+    - (Potentially) Updates lead status or adds notes directly in the web interface.
+  - Action & Outreach: User utilizes the curated leads and contextual insights from the web application to personalize networking outreach and identify relevant job applications.
+  - Optional Data Export: User can trigger an export to Notion or a .txt file if needed.
+
+- UI/UX Considerations (Web Application):
+  - Configuration: Should be straightforward for scraper settings.
+  - Web Application UI:
+    - Clean, intuitive, and responsive design.
+    - Clear data presentation (tables, sortable columns).
+    - Effective and easy-to-use filtering controls (dropdowns, search boxes).
+    - Clickable links to LinkedIn profiles or job postings.
+    - (If implemented) Clear interface for adding notes or updating status.
+  - Feedback: The scraper should provide console feedback. The web application should be responsive.
+  - Error Handling: Graceful handling of errors (e.g., API issues, scraping blocks, database errors) with informative messages.
+</context>
+<PRD>
+# Technical Architecture
+- System Components:
+  - Data Acquisition Module (Python):
+    - LinkedIn Scraper: Utilizes Selenium for direct browser automation or integrates with third-party APIs like SerpApi/Scrapingdog. Uses BeautifulSoup for HTML parsing if raw HTML is obtained.
+    - Company Info Scraper: Similar technology to LinkedIn scraper, targeting company pages.
+  - API Integration Module (Python):
+    - Lever Client: Uses requests library to interact with the Lever API.
+    - Greenhouse Client: Uses requests library for the Greenhouse Job Board API.
+  - Data Processing & Curation Module (Python):
+    - Contains logic for filtering leads based on criteria.
+    - Logic for consolidating data from various sources into a unified lead object before database insertion.
+  - Internal Database (e.g., SQLite):
+    - Stores lead objects, company information, and related job postings.
+    - Schema designed to support efficient querying and filtering by the web application.
+  - Web Application Backend (Python - e.g., Flask, FastAPI):
+    - Exposes RESTful API endpoints (e.g., /api/leads, /api/leads/<id>).
+    - Handles requests from the frontend (fetching, filtering, updating leads).
+    - Interacts with the internal database (CRUD operations).
+    - Contains business logic for lead management if not handled entirely by the frontend.
+  - Web Application Frontend (e.g., Streamlit, or HTML/CSS/JS with a framework like React/Vue):
+    - Makes API calls to the backend.
+    - Renders lead data in a user-friendly interface.
+    - Provides controls for filtering, sorting, and interaction.
+  - Configuration Manager (Python):
+    - Loads settings (API keys, search terms, database path) from a configuration file (e.g., .env) or environment variables.
+
+- Data Models (for internal database):
+  - Lead Table:
+    - id: Integer (Primary Key)
+    - lead_name: String
+    - linkedin_profile_url: String (URL)
+    - current_role: String
+    - company_name: String
+    - alma_mater_match: String (e.g., "Questrom, University School", "Questrom", "None")
+    - location: String (e.g., "New York City")
+    - source_of_lead: String (e.g., "Alumni Search," "NYC PM Search")
+    - mutual_connections: String/Integer (if available)
+    - company_product_focus: Text (summary)
+    - company_size: String (e.g., "100-500 employees")
+    - date_added: Datetime
+    - status: String (user-defined, e.g., "New," "Contacted", "To Review")
+    - notes: Text
+    - (Potentially Foreign Keys to Company Table, Job Postings Table)
+  - Company Table (Optional, for normalization):
+    - id: Integer (Primary Key)
+    - company_name: String (Unique)
+    - product_focus: Text
+    - size: String
+    - (Other company-specific details)
+  - JobPosting Table (Optional, for normalization):
+    - id: Integer (Primary Key)
+    - lead_id: Integer (Foreign Key to Lead Table)
+    - job_title: String
+    - company_name: String
+    - job_location: String
+    - job_url: String (URL)
+    - job_description_snippet: Text (optional)
+    - source_api: String (e.g., "Lever", "Greenhouse")
+
+- APIs and Integrations (External):
+  - LinkedIn: Accessed via web scraping or third-party scraping APIs.
+  - Lever API: GET https://api.lever.co/v1/postings for job listings.
+  - Greenhouse Job Board API: GET https://boards-api.greenhouse.io/v1/boards/{board_token}/jobs for job listings.
+  - Notion API (Optional): Used for creating pages in a database if Notion export is implemented.
+
+- Infrastructure Requirements:
+  - A local machine with Python 3.x installed.
+  - Necessary Python libraries (e.g., selenium, beautifulsoup4, requests, sqlalchemy, web framework like Flask/FastAPI, Streamlit if used for frontend).
+  - Reliable internet connection.
+  - Web browser (if using Selenium).
+  - (Optional/Recommended) Subscription to a proxy service or LinkedIn scraping API.
+
+# Development Roadmap
+- MVP Requirements (Phase 1 - Core Scraper, Database, Basic Web UI):
+  - LinkedIn Data Acquisition - Basics:
+    - Implement scraping for alumni and NYC PMs.
+    - Extract core data: Name, Profile URL, Role, Company, Location, School.
+  - Internal Database Setup (SQLite):
+    - Define schema for Leads.
+    - Implement functions to insert scraped leads into the database.
+  - Basic Filtering Logic:
+    - Implement server-side or client-side filtering for alma mater & NYC PM.
+  - Basic Web Application (Streamlit or Flask/FastAPI + Simple Frontend):
+    - Backend: API endpoint to fetch all leads from the database.
+    - Frontend: Display leads in a simple table. Clickable LinkedIn URLs. Basic filtering controls.
+  - Basic Configuration:
+    - Config file for search terms, database path.
+
+- Future Enhancements (Phase 2 - Richer Data, Enhanced Web UI & Optional Exports):
+  - Job Board Integration:
+    - Integrate with Lever & Greenhouse APIs to fetch job postings.
+    - Store relevant job info linked to leads in the database.
+    - Display job info in the web application.
+  - Contextual Insights - Company Information:
+    - Implement scraping for basic company information. Store in DB. Display in web app.
+  - Advanced Filtering & Sorting in Web App:
+    - Implement more sophisticated filtering (role level, keywords) and sorting in the web UI.
+  - Lead Detail View & Management in Web App:
+    - Create a page/modal to show detailed info for a single lead.
+    - Allow updating status and adding notes for leads directly in the web app.
+  - Improved Configuration & Scraping Robustness:
+    - .env files for secrets. Anti-detection for Selenium.
+  - Optional: Notion Database Export.
+  - Optional: .txt File Export.
+
+- Future Enhancements (Phase 3 - Advanced Features & Refinements):
+  - Expanded Data Sources for enrichment.
+  - Granular Filtering in Web App (skills, experience).
+  - Automated Profile Summarization (display in web app).
+  - Trend Analysis (if data is stored over time, display in web app).
+  - "Smart" Suggestions/Lead Scoring (in web app).
+
+# Logical Dependency Chain
+- Foundation - Core Data Acquisition & Parsing:
+  - Develop the LinkedIn scraping module.
+  - Implement parsing logic.
+- Database Backend:
+  - Design and implement the internal database schema (SQLite).
+  - Develop functions for scraper to write to DB.
+- Core Web Application (Backend & Basic Frontend - MVP):
+  - Develop backend API to serve data from the database.
+  - Develop basic frontend (Streamlit or simple custom) to display leads and basic filters.
+  - This provides the first usable/visible interactive application.
+- Contextual Enrichment & UI Enhancements:
+  - Integrate Job Boards and Company Info scrapers; store data in DB.
+  - Enhance web application UI: detailed views, advanced filtering, status updates, notes.
+- Optional Exports & Advanced Features (Iterative):
+  - Implement Notion/.txt export if desired.
+  - Add features from "Phase 3" roadmap, building upon the web application.
+
+- Pacing and Scoping:
+  - Each numbered item above can be considered a significant development chunk.
+  - The goal is to make each step deliver a testable, incremental improvement to the web application.
+
+# Risks and Mitigations
+- Technical Challenges:
+  - LinkedIn Blocking/Detection: (Mitigations remain similar - favor APIs, robust direct scraping techniques).
+  - External API Changes/Deprecation (Lever, Greenhouse): (Mitigations remain similar - modular code, error handling, monitoring).
+  - Data Quality Issues from Scraping: (Mitigations remain similar - flexible parsing, validation, potentially manual correction via web app if implemented).
+  - Job Board API Token Discovery: (Mitigations remain similar - manual input for MVP).
+- Figuring out the MVP that we can build upon:
+  - Risk: MVP scope is too ambitious for the web application.
+  - Mitigation:
+    - Define MVP strictly around:
+      - Automated collection of basic lead data to internal DB.
+      - Essential filtering.
+      - Basic web application to display and filter leads.
+    - This ensures a functional end-to-end pipeline with an interactive UI quickly.
+- Resource Constraints (user's development time): (Mitigations remain similar - prioritization, modularity, realistic expectations).
+
+# Appendix
+- Research Findings (Summary):
+  - The manual job search and networking process is widely recognized as inefficient and time-consuming. Users often struggle with tracking applications, repetitive data entry, and identifying the most relevant contacts.
+  - This tool is designed to directly address these pain points by automating the initial research and lead generation phase, providing curated and contextualized information to make the user's efforts more targeted and effective.
+
+- Technical Specifications (References to original PRD content):
+  - LinkedIn Profile Data Points: Detailed fields to be extracted from LinkedIn profiles (e.g., Full Name, Profile URL, Current Job Title, Company, Location, Summary Snippet, Alma Mater Snippet) are outlined in what was previously Table 1 of the PRD.
+  - Job Board API Capabilities (Lever vs. Greenhouse): A comparison of Lever and Greenhouse API features (endpoints, filtering, authentication, rate limits, data fields) was detailed in what was previously Table 2 of the PRD.
+  - Technology Stack Overview: A summary of recommended tools and libraries for each component of the system (e.g., SerpApi/Selenium for scraping, Python requests for APIs, Streamlit for dashboard) was provided in what was previously Table 3 of the PRD. (These tables or their detailed content would be included here in a full document).
+</PRD>

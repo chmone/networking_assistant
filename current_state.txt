@@ -1,0 +1,18 @@
+**Project:** `networking_assistant`
+**Goal:** Resolve all `pytest` test failures.
+**Current Status:**
+*   409 tests passing.
+*   7 tests failing in `tests/data_acquisition/test_linkedin_scraper.py::TestLinkedInScraperMakeApiRequest`.
+*   The failing tests cover error handling for API requests (401, 403, 400, 429, 500, network errors, JSON errors).
+
+**Recent Actions:**
+*   Modified the `@retry_with_backoff` decorator in `src/core/retry_utils.py` to include `DataAcquisitionError` in the list of exceptions that trigger retries.
+*   Added `match` parameter to `pytest.raises` in the failing tests for more specific exception checking.
+*   Removed `from ...` when raising custom exceptions in `src/data_acquisition/linkedin_scraper.py::_make_api_request` as a diagnostic step.
+
+**Current Problem:**
+*   The 7 failing tests are correctly raising the expected custom exception types (`ApiAuthError`, `ApiLimitError`, `DataAcquisitionError`) after exhausting retries or being immediately re-raised by the retry decorator.
+*   However, the `pytest.raises(...)` blocks in the tests are not catching these exceptions, causing the tests to be marked as FAILED. The exact reason for this discrepancy is unclear.
+
+**Next Step:**
+*   Investigate why `pytest.raises` is failing to catch the correctly typed exceptions when they are raised/re-raised from within the context of the `@retry_with_backoff` decorator in `tests/data_acquisition/test_linkedin_scraper.py`. This might involve exploring interactions between pytest and decorators, or deeper aspects of exception handling context. 

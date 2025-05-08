@@ -1,0 +1,38 @@
+# Core scraping and data handling
+requests
+beautifulsoup4 # If doing more complex HTML parsing later
+selenium # If needed for direct browser automation later
+serpapi # For interacting with SerpApi (Google Search, LinkedIn, etc.)
+
+# Database
+SQLAlchemy
+# psycopg2-binary # If using PostgreSQL
+# mysql-connector-python # If using MySQL
+
+# Environment & Config
+python-dotenv
+
+# API Framework
+fastapi
+uvicorn[standard] # Includes standard dependencies like websockets, needed for Uvicorn server
+
+# Job Board APIs (Specific libraries if available, otherwise requests is used)
+# (No specific libraries added yet)
+
+# Data Processing & Analysis (Optional future additions)
+# pandas
+numpy
+
+# Web App Frontend (If Streamlit or similar is used later)
+streamlit
+
+# Testing
+pytest
+pytest-cov
+pytest-mock # For pytest integration with unittest.mock
+requests-mock # For mocking HTTP requests in tests
+mock # Built-in, but sometimes explicitly listed
+
+# Additional libraries
+flask
+notion-client 
