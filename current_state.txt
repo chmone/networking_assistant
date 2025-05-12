@@ -1,18 +1,49 @@
 **Project:** `networking_assistant`
-**Goal:** Resolve all `pytest` test failures.
+**Session Goal:** Re-initialize project on a new machine, fix failing tests, resolve warnings, and prepare for next steps.
+
+**Previous State:** Project moved to a new machine. `pytest` runs failing due to various issues.
+
+**Work Completed in This Session:**
+1.  **Project Re-initialization:**
+    *   Ran `task-master init` successfully.
+    *   Attempted `task-master list`, which failed due to missing `tasks/tasks.json` (not typically version controlled). Skipped task review for now.
+2.  **Dependency Installation:**
+    *   Identified `ModuleNotFoundError` for `selenium`, `freezegun`, and `email-validator` during test runs.
+    *   Ran `pip install -r requirements.txt` to install base dependencies.
+    *   Ran `pip install freezegun \"pydantic[email]\"` to install missing test/validation dependencies.
+    *   Updated `requirements.txt` to include `freezegun` and `pydantic[email]`.
+3.  **Test Fixing (`tests/data_acquisition/test_linkedin_scraper.py`):**
+    *   Addressed initial `ImportError` for `selenium`.
+    *   Debugged `AssertionError: Expected ApiAuthError to be raised` failures in `TestLinkedInScraperMakeApiRequest`. This involved several iterations:
+        *   Modified `_make_api_request` in `linkedin_scraper.py` to catch `ApiAuthError` explicitly.
+        *   Modified `@retry_with_backoff` decorator in `retry_utils.py` to *not* retry `ApiAuthError`.
+        *   Refactored tests to correctly mock `requests.exceptions.HTTPError` and use `pytest.raises`.
+        *   Identified and fixed `NameError` related to exception imports by changing `from core.exceptions import X` to `import core.exceptions` and using fully qualified names (e.g., `core.exceptions.ApiAuthError`) in `isinstance` checks. This resolved the core assertion failures.
+    *   Fixed assertion errors in other `test_linkedin_scraper.py` tests (`test_make_request_json_decode_error`, `test_api_connection_api_error`) related to incorrect call count assertions and `NameError` for exceptions.
+    *   Achieved 100% pass rate (36/36) for `tests/data_acquisition/test_linkedin_scraper.py`.
+4.  **Full Test Suite Run & Warning Resolution:**
+    *   Ran `pytest -v` on the whole project.
+    *   Resolved 6 test collection errors by installing `freezegun` and `pydantic[email]`.
+    *   Achieved 100% pass rate (416/416) for the entire test suite.
+    *   Resolved FastAPI `on_event` deprecation warnings by refactoring `src/web_app/api_main.py` to use the `lifespan` context manager.
+    *   Resolved SQLAlchemy `utcnow()` deprecation warnings by modifying timestamp defaults in `src/database/models.py` to use `lambda: datetime.datetime.now(datetime.UTC)`. Fixed associated import errors caused by the edit.
+    *   Confirmed all tests still pass after warning fixes.
+
 **Current Status:**
-*   409 tests passing.
-*   7 tests failing in `tests/data_acquisition/test_linkedin_scraper.py::TestLinkedInScraperMakeApiRequest`.
-*   The failing tests cover error handling for API requests (401, 403, 400, 429, 500, network errors, JSON errors).
+*   **Code:** All tests (416/416) are passing. Deprecation warnings for FastAPI and SQLAlchemy have been addressed.
+*   **Warnings:** 24 `PydanticDeprecatedSince20` warnings related to `.dict()` remain. These appear internal to `TestClient`/FastAPI/Pydantic interactions and not directly caused by user code needing `.model_dump()` replacement. Accepted for now.
+*   **Taskmaster:** `tasks/tasks.json` is missing as it was likely not version controlled. Taskmaster commands requiring this file (like `list`, `next`) will fail.
+*   **Code Cleanup:** A quick search revealed commented-out lines/blocks, but no obviously removable large sections of outdated code were identified without a deeper analysis.
 
-**Recent Actions:**
-*   Modified the `@retry_with_backoff` decorator in `src/core/retry_utils.py` to include `DataAcquisitionError` in the list of exceptions that trigger retries.
-*   Added `match` parameter to `pytest.raises` in the failing tests for more specific exception checking.
-*   Removed `from ...` when raising custom exceptions in `src/data_acquisition/linkedin_scraper.py::_make_api_request` as a diagnostic step.
+**Blocker:**
+*   Cannot use Taskmaster features (`list`, `next`, `expand`, etc.) until `tasks.json` is restored or regenerated.
 
-**Current Problem:**
-*   The 7 failing tests are correctly raising the expected custom exception types (`ApiAuthError`, `ApiLimitError`, `DataAcquisitionError`) after exhausting retries or being immediately re-raised by the retry decorator.
-*   However, the `pytest.raises(...)` blocks in the tests are not catching these exceptions, causing the tests to be marked as FAILED. The exact reason for this discrepancy is unclear.
-
-**Next Step:**
-*   Investigate why `pytest.raises` is failing to catch the correctly typed exceptions when they are raised/re-raised from within the context of the `@retry_with_backoff` decorator in `tests/data_acquisition/test_linkedin_scraper.py`. This might involve exploring interactions between pytest and decorators, or deeper aspects of exception handling context. 
+**Next Steps (for next agent/session):**
+1.  **Restore/Regenerate `tasks.json`:**
+    *   Option A (Preferred): Obtain the `tasks.json` file from the original machine and place it in the `tasks/` directory.
+    *   Option B: Re-run `npx task-master-ai parse-prd --input scripts/prd.txt --force` to generate a new `tasks.json` (Note: This will reset all task statuses and potential manual modifications/subtasks).
+2.  **Resume Development:** Once Taskmaster is functional:
+    *   Run `npx task-master-ai list` to review the task list.
+    *   Run `npx task-master-ai next` to identify the next task based on the restored/regenerated state.
+    *   Continue development according to the PRD and the Taskmaster plan.
+3.  **Commit Changes:** The changes made in this session (test fixes, warning fixes, `requirements.txt`, `current_state.txt`) need to be committed and pushed. 

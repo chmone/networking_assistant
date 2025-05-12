@@ -10,6 +10,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 from fastapi import status
 import uuid
+from contextlib import asynccontextmanager # Import asynccontextmanager
 
 # Adjust path to import from other top-level directories (config, database, etc.)
 # This assumes api_main.py is in src/web_app/
@@ -47,10 +48,48 @@ config_file_path = os.path.abspath(os.path.join(src_path, '..', '.env'))
 config_manager = ConfigManager(env_file_path=config_file_path)
 db_manager = DatabaseManager(config=config_manager)
 
+# --- Lifespan Context Manager ---
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # --- Startup Logic ---
+    logger.info("FastAPI application startup...")
+    # Configure logging (could read level/format from config_manager)
+    log_level_str = config_manager.get_config("LOG_LEVEL", "INFO").upper()
+    log_level = getattr(logging, log_level_str, logging.INFO)
+    logging.basicConfig(
+        level=log_level,
+        format='%(asctime)s | %(levelname)s | %(name)s | %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    logger.info(f"Logging configured with level: {log_level_str}")
+    
+    try:
+        # Ensure DB connection is okay on startup (optional check)
+        with db_manager.managed_session() as db:
+            # Ensure models is imported correctly if needed here - assuming models has text
+            if hasattr(models, 'text'):
+                db.execute(models.text("SELECT 1")) 
+            else:
+                # Fallback if models doesn\'t have text (might need import adjustments)
+                from sqlalchemy import text
+                db.execute(text("SELECT 1"))
+        logger.info("Database connection verified.")
+    except Exception as e:
+        logger.critical(f"Database connection failed on startup: {e}")
+        # Potentially raise the error to stop startup or handle differently
+        # raise RuntimeError(f"Database connection failed: {e}")
+    
+    yield # The application runs while the context manager is active
+    
+    # --- Shutdown Logic ---
+    logger.info("FastAPI application shutdown...")
+    # Perform any cleanup here if needed
+
 app = FastAPI(
     title="Networking Assistant API",
     description="API for managing leads, companies, and job postings.",
-    version="0.1.0"
+    version="0.1.0",
+    lifespan=lifespan # Pass the lifespan context manager
 )
 
 # --- Middleware Setup ---
@@ -133,36 +172,6 @@ app.include_router(companies.router, prefix="/api/v1/companies", tags=["Companie
 # Example: Placeholder for future job posting endpoints
 from .routers import jobs
 app.include_router(jobs.router, prefix="/api/v1/jobs", tags=["Job Postings"])
-
-
-# --- Application Startup / Shutdown Events (Optional) ---
-@app.on_event("startup")
-async def startup_event():
-    logger.info("FastAPI application startup...")
-    # Configure logging (could read level/format from config_manager)
-    log_level_str = config_manager.get_config("LOG_LEVEL", "INFO").upper()
-    log_level = getattr(logging, log_level_str, logging.INFO)
-    logging.basicConfig(
-        level=log_level,
-        format='%(asctime)s | %(levelname)s | %(name)s | %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
-    )
-    logger.info(f"Logging configured with level: {log_level_str}")
-    
-    try:
-        # Ensure DB connection is okay on startup (optional check)
-        with db_manager.managed_session() as db:
-            db.execute(models.text("SELECT 1")) # Use models.text directly
-        logger.info("Database connection verified.")
-    except Exception as e:
-        logger.critical(f"Database connection failed on startup: {e}")
-        # Potentially prevent app from fully starting or raise critical error
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    logger.info("FastAPI application shutdown...")
-    # Perform any cleanup here if needed
-    # (e.g., closing external connections not handled by contexts)
 
 # --- Main execution (for running with uvicorn) ---
 # Typically you run FastAPI apps with: uvicorn src.web_app.api_main:app --reload
