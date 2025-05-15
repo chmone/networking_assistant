@@ -106,20 +106,32 @@ class LinkedInScraper:
 
             return response.json()
 
+        # NEW BLOCK: Catch ApiAuthError *first* to prevent decorator retry
+        except ApiAuthError as auth_err:
+            # This exception might be raised by a downstream call or logic if refactored later,
+            # or potentially directly if we modified raise_for_status handling,
+            # but the primary path is via HTTPError below.
+            # However, catching it explicitly ensures it *never* gets retried by the decorator.
+            logger.error(f"Authentication error caught directly for {request_description}: {auth_err}")
+            raise auth_err # Re-raise immediately
+
         except requests.exceptions.HTTPError as http_err:
             # Ensure response is available for logging, even if error occurred before response.json()
             current_response = http_err.response if http_err.response is not None else response
             status_code = current_response.status_code if current_response else 'N/A'
             
             if status_code == 401 or status_code == 403:
+                # This path should now handle the initial raising based on status code
                 logger.error(f"Authentication error for {request_description}. Status: {status_code}. Check API Key.")
+                # Raise ApiAuthError - the block above will *not* catch this specific instance
+                # because we are already inside an except block. It will propagate upwards.
                 raise ApiAuthError(f"Authentication failed for {request_description}", source="SerpApi", original_exception=http_err)
             elif status_code == 429:
                  # Directly raise ApiLimitError. The decorator will catch and retry this.
                  logger.error(f"API rate limit error encountered for {request_description} (Status: {status_code}). Will attempt retry.")
                  raise ApiLimitError(f"API rate limit error for {request_description}", source="SerpApi", original_exception=http_err)
 
-            # For any other HTTPError (400, 500, etc.)
+            # For any other HTTPError (400, 500, etc.) - No longer need to check 401/403 here
             logger.error(f"HTTPError during {request_description} (Status: {status_code}): {http_err}")
             raise DataAcquisitionError(f"HTTP error during {request_description}", source="SerpApi", original_exception=http_err)
         

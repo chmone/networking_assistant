@@ -5,6 +5,9 @@ import datetime
 import enum
 import sqlalchemy
 
+# Ensure datetime.UTC is available (Python 3.11+)
+# For older versions, would use from datetime import timezone; then timezone.utc
+
 # Base class for declarative models
 # SQLALCHEMY_WARN_20 Imports from "sqlalchemy.orm.declarative" will be deprecated in SQLAlchemy 2.1. Use "sqlalchemy.orm" instead. (Background on SQLAlchemy 2.0 at: https://sqlalche.me/e/b8d9)
 Base = declarative_base()
@@ -14,7 +17,7 @@ job_applications = sqlalchemy.Table('job_applications',
     Base.metadata,
     sqlalchemy.Column('lead_id', sqlalchemy.Integer, sqlalchemy.ForeignKey('leads.id', ondelete='CASCADE'), primary_key=True),
     sqlalchemy.Column('job_posting_id', sqlalchemy.Integer, sqlalchemy.ForeignKey('job_postings.id', ondelete='CASCADE'), primary_key=True),
-    sqlalchemy.Column('application_date', sqlalchemy.DateTime, default=datetime.datetime.utcnow, nullable=False),
+    sqlalchemy.Column('application_date', sqlalchemy.DateTime, default=lambda: datetime.datetime.now(datetime.UTC), nullable=False),
     sqlalchemy.Column('status', sqlalchemy.String, nullable=True) # e.g., Applied, Interviewing, Offer, Rejected
 )
 
@@ -43,8 +46,8 @@ class Lead(Base):
     status = Column(Enum(LeadStatus), default=LeadStatus.NEW.value, nullable=False)
     source = Column(String, nullable=True)
     notes = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.UTC), nullable=False)
+    updated_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.UTC), onupdate=lambda: datetime.datetime.now(datetime.UTC), nullable=False)
 
     # Relationships to be defined in Subtask 3.2
     company_id = Column(Integer, ForeignKey('companies.id'), nullable=True)
@@ -69,8 +72,8 @@ class Company(Base):
     size = Column(String, nullable=True)
     location = Column(String, nullable=True)
     description = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.UTC), nullable=False)
+    updated_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.UTC), onupdate=lambda: datetime.datetime.now(datetime.UTC), nullable=False)
 
     # Relationships to be defined in Subtask 3.2
     leads = relationship("Lead", back_populates="company")
@@ -91,8 +94,8 @@ class JobPosting(Base):
     job_url = Column(String, nullable=True)
     job_type = Column(Enum(JobType), nullable=True)
     status = Column(String, default="Open", nullable=False) # e.g., Open, Closed, Filled
-    created_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.UTC), nullable=False)
+    updated_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.UTC), onupdate=lambda: datetime.datetime.now(datetime.UTC), nullable=False)
     
     # Relationships to be defined in Subtask 3.2
     company_id = Column(Integer, ForeignKey('companies.id'), nullable=True)

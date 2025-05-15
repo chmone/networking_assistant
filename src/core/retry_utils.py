@@ -8,13 +8,13 @@ import functools # Add this import
 logger = logging.getLogger(__name__)
 
 # Import custom exceptions if they are to be specifically caught and handled by retry
-from .exceptions import ApiLimitError, DataAcquisitionError # Add ApiLimitError and DataAcquisitionError imports
+from .exceptions import ApiLimitError, DataAcquisitionError, ApiAuthError # Keep ApiAuthError import for the check
 
 def retry_with_backoff(retries=3, initial_delay=1, backoff_factor=2, jitter=True, 
                        retry_on_exceptions=(requests.exceptions.ConnectionError, 
                                             requests.exceptions.Timeout,
                                             ApiLimitError, # Only retry on these specific exceptions by default
-                                            DataAcquisitionError # Add DataAcquisitionError here
+                                            DataAcquisitionError # REMOVED ApiAuthError from this default tuple
                                             ),
                        retry_on_status_codes=(429, 500, 502, 503, 504)):
     """
@@ -51,6 +51,13 @@ def retry_with_backoff(retries=3, initial_delay=1, backoff_factor=2, jitter=True
                         return result # Success
                         
                 except retry_on_exceptions as e:
+                    # ADDED CHECK: Immediately raise ApiAuthError if caught, don't retry it.
+                    # This handles cases where ApiAuthError inherits from a listed exception (DataAcquisitionError)
+                    if type(e) is ApiAuthError:
+                        logger.warning(f"Function {func.__name__} raised ApiAuthError. Not retrying authentication errors.")
+                        raise e
+                    
+                    # Original retry logic for other exceptions in the tuple
                     logger.warning(
                         f"Retry {current_retries + 1}/{retries}: Function {func.__name__} raised {type(e).__name__}: {e}. Retrying..."
                     )

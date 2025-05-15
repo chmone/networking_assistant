@@ -2,6 +2,7 @@ import pytest
 import requests
 from unittest.mock import MagicMock, patch, call
 import requests
+import re # Import re
 
 # Path adjustment
 import sys
@@ -12,7 +13,9 @@ if project_root not in sys.path:
 
 from src.data_acquisition.linkedin_scraper import LinkedInScraper
 from src.config.config_manager import ConfigManager # For spec
-from src.core.exceptions import ApiAuthError, ApiLimitError, DataAcquisitionError # Custom exceptions
+# Use module import for exceptions
+import core.exceptions 
+# from core.exceptions import ApiAuthError, ApiLimitError, DataAcquisitionError # REMOVE direct import
 
 # --- Fixtures --- 
 
@@ -71,7 +74,6 @@ class TestLinkedInScraperInitialization:
 class TestLinkedInScraperMakeApiRequest:
     @pytest.fixture
     def scraper(self, mock_config_manager_with_key):
-        # Need API key for this method
         return LinkedInScraper(config_manager=mock_config_manager_with_key)
 
     def test_make_request_success(self, scraper, mock_requests_get):
@@ -88,94 +90,123 @@ class TestLinkedInScraperMakeApiRequest:
         mock_requests_get.assert_called_once_with(scraper.base_url, params=params, timeout=20)
         assert result == expected_json
 
-    def test_make_request_auth_error_401(self, scraper, mock_requests_get):
+    def test_make_request_auth_error_401(self, caplog, scraper, mock_requests_get):
         mock_response = MagicMock()
         mock_response.status_code = 401
         mock_response.text = "Auth failed"
-        # Ensure the mock_response itself is passed to HTTPError, not just its status or text
         http_error_instance = requests.exceptions.HTTPError(response=mock_response)
         mock_response.raise_for_status.side_effect = http_error_instance
         mock_requests_get.return_value = mock_response
-
         params = {"q": "test", "api_key": scraper.api_key}
-        # Exact match for the message part, original_exception will be the HTTPError
-        expected_message = f"Authentication failed for test 401"
-        with pytest.raises(ApiAuthError, match=expected_message):
+        try:
             scraper._make_api_request(params, "test 401")
+            pytest.fail("ApiAuthError not raised") 
+        except Exception as e: 
+            assert isinstance(e, core.exceptions.ApiAuthError), f"Expected ApiAuthError, got {type(e)}"
+            assert mock_requests_get.call_count == 1 
+            assert "Not retrying authentication errors." in caplog.text
             
-    def test_make_request_auth_error_403(self, scraper, mock_requests_get):
+    def test_make_request_auth_error_403(self, caplog, scraper, mock_requests_get):
         mock_response = MagicMock()
         mock_response.status_code = 403
         mock_response.text = "Forbidden"
         http_error_instance = requests.exceptions.HTTPError(response=mock_response)
         mock_response.raise_for_status.side_effect = http_error_instance
         mock_requests_get.return_value = mock_response
-
         params = {"q": "test", "api_key": scraper.api_key}
-        expected_message = f"Authentication failed for test 403"
-        with pytest.raises(ApiAuthError, match=expected_message):
+        try:
             scraper._make_api_request(params, "test 403")
+            pytest.fail("ApiAuthError not raised")
+        except Exception as e:
+            assert isinstance(e, core.exceptions.ApiAuthError), f"Expected ApiAuthError, got {type(e)}"
+            assert mock_requests_get.call_count == 1 
+            assert "Not retrying authentication errors." in caplog.text
 
-    def test_make_request_client_error_400(self, scraper, mock_requests_get):
+    @patch('src.core.retry_utils.time.sleep', return_value=None)
+    def test_make_request_client_error_400(self, mock_sleep, caplog, scraper, mock_requests_get):
         mock_response = MagicMock()
         mock_response.status_code = 400
         mock_response.text = "Bad Request"
         http_error_instance = requests.exceptions.HTTPError(response=mock_response)
         mock_response.raise_for_status.side_effect = http_error_instance 
         mock_requests_get.return_value = mock_response
-
         params = {"q": "test", "api_key": scraper.api_key}
-        expected_message = f"HTTP error during test 400"
-        with pytest.raises(DataAcquisitionError, match=expected_message):
+        try:
             scraper._make_api_request(params, "test 400")
+            pytest.fail("DataAcquisitionError not raised")
+        except Exception as e:
+            assert isinstance(e, core.exceptions.DataAcquisitionError), f"Expected DataAcquisitionError, got {type(e)}"
+            assert mock_requests_get.call_count == 4 
+            assert "Max retries (3) reached" in caplog.text
 
-    def test_make_request_rate_limit_error_429_final(self, scraper, mock_requests_get):
+    @patch('src.core.retry_utils.time.sleep', return_value=None)
+    def test_make_request_rate_limit_error_429_final(self, mock_sleep, caplog, scraper, mock_requests_get):
         mock_response = MagicMock()
         mock_response.status_code = 429
         mock_response.text = "Rate Limit Exceeded"
         http_error_instance = requests.exceptions.HTTPError(response=mock_response)
         mock_response.raise_for_status.side_effect = http_error_instance  
         mock_requests_get.return_value = mock_response
-    
         params = {"q": "test", "api_key": scraper.api_key}
-        expected_message = f"API rate limit error for test 429 final"
-        with pytest.raises(ApiLimitError, match=expected_message):
+        try:
             scraper._make_api_request(params, "test 429 final")
+            pytest.fail("ApiLimitError not raised")
+        except Exception as e:
+            assert isinstance(e, core.exceptions.ApiLimitError), f"Expected ApiLimitError, got {type(e)}"
+            assert mock_requests_get.call_count == 4 
+            assert "Max retries (3) reached" in caplog.text
              
-    def test_make_request_server_error_500_final(self, scraper, mock_requests_get):
+    @patch('src.core.retry_utils.time.sleep', return_value=None)
+    def test_make_request_server_error_500_final(self, mock_sleep, caplog, scraper, mock_requests_get):
         mock_response = MagicMock()
         mock_response.status_code = 500
         mock_response.text = "Server Error"
         http_error_instance = requests.exceptions.HTTPError(response=mock_response)
         mock_response.raise_for_status.side_effect = http_error_instance  
         mock_requests_get.return_value = mock_response
-
         params = {"q": "test", "api_key": scraper.api_key}
-        expected_message = f"HTTP error during test 500 final"
-        with pytest.raises(DataAcquisitionError, match=expected_message):
+        try:
             scraper._make_api_request(params, "test 500 final")
+            pytest.fail("DataAcquisitionError not raised")
+        except Exception as e:
+            assert isinstance(e, core.exceptions.DataAcquisitionError), f"Expected DataAcquisitionError, got {type(e)}"
+            assert mock_requests_get.call_count == 4 
+            assert "Max retries (3) reached" in caplog.text
 
-    def test_make_request_network_error(self, scraper, mock_requests_get):
+    @patch('src.core.retry_utils.time.sleep', return_value=None)
+    def test_make_request_network_error(self, mock_sleep, caplog, scraper, mock_requests_get):
         network_exception = requests.exceptions.RequestException("Connection failed")
         mock_requests_get.side_effect = network_exception
         params = {"q": "test", "api_key": scraper.api_key}
-        expected_message = f"Network or request error during test network error"
-        with pytest.raises(DataAcquisitionError, match=expected_message):
+        try:
             scraper._make_api_request(params, "test network error")
+            pytest.fail("DataAcquisitionError not raised")
+        except Exception as e:
+            assert isinstance(e, core.exceptions.DataAcquisitionError), f"Expected DataAcquisitionError, got {type(e)}"
+            assert isinstance(e.original_exception, requests.exceptions.RequestException)
+            assert mock_requests_get.call_count == 4 
+            assert "Max retries (3) reached" in caplog.text
 
-    def test_make_request_json_decode_error(self, scraper, mock_requests_get):
+    @patch('src.core.retry_utils.time.sleep', return_value=None)
+    def test_make_request_json_decode_error(self, mock_sleep, caplog, scraper, mock_requests_get):
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.raise_for_status = MagicMock()
-        json_decode_exception = ValueError("Invalid JSON") # Or requests.exceptions.JSONDecodeError
+        json_decode_exception = ValueError("Invalid JSON")
         mock_response.json.side_effect = json_decode_exception
-        mock_response.text = "<html><body>Error</body></html>" # Add text for logging
+        mock_response.text = "<html><body>Error</body></html>"
         mock_requests_get.return_value = mock_response
-        
         params = {"q": "test", "api_key": scraper.api_key}
-        expected_message = f"Invalid JSON response for test json error"
-        with pytest.raises(DataAcquisitionError, match=expected_message):
+        try:
             scraper._make_api_request(params, "test json error")
+            pytest.fail("DataAcquisitionError not raised")
+        except Exception as e:
+            assert isinstance(e, core.exceptions.DataAcquisitionError), f"Expected DataAcquisitionError, got {type(e)}"
+            assert isinstance(e.original_exception, ValueError)
+            # Correct Assertion: Expect 4 calls due to retries
+            assert mock_requests_get.call_count == 4 # 1 initial + 3 retries
+            assert mock_response.json.call_count == 4 # 1 initial + 3 retries
+            assert "Max retries (3) reached" in caplog.text
 
 # --- TODO: Tests for test_api_connection ---
 class TestLinkedInScraperTestApiConnection:
@@ -210,7 +241,7 @@ class TestLinkedInScraperTestApiConnection:
     def test_api_connection_api_error(self, scraper, mocker):
         mock_make_request = mocker.patch.object(scraper, '_make_api_request')
         error_message = "Simulated API failure"
-        mock_make_request.side_effect = DataAcquisitionError(error_message, source="SerpApi")
+        mock_make_request.side_effect = core.exceptions.DataAcquisitionError(error_message, source="SerpApi")
 
         result = scraper.test_api_connection()
 
@@ -289,7 +320,7 @@ class TestLinkedInScraperScrapeAlumni:
     def test_scrape_alumni_api_error(self, scraper, mocker):
         school_name = "Error University"
         mock_make_request = mocker.patch.object(scraper, '_make_api_request')
-        mock_make_request.side_effect = DataAcquisitionError("API failed")
+        mock_make_request.side_effect = core.exceptions.DataAcquisitionError("API failed")
         mock_parse_results = mocker.patch.object(scraper, '_parse_linkedin_results')
 
         result = scraper.scrape_alumni_by_school(school_name)
@@ -385,7 +416,7 @@ class TestLinkedInScraperScrapePMs:
     def test_scrape_pms_api_error(self, scraper, mocker):
         location = "Berlin"
         mock_make_request = mocker.patch.object(scraper, '_make_api_request')
-        mock_make_request.side_effect = DataAcquisitionError("API failed")
+        mock_make_request.side_effect = core.exceptions.DataAcquisitionError("API failed")
         mock_parse_results = mocker.patch.object(scraper, '_parse_linkedin_results')
 
         result = scraper.scrape_pms_by_location(location)
