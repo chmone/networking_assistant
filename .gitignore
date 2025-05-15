@@ -155,7 +155,7 @@ cache/
 
 # Taskmaster files
 tasks/tasks.json.bak
-scripts/task-complexity-report.json.bak
+scripts/task-complexity-report.json.bak 
 
 # Cursor MCP file
 .cursor/mcp.json 

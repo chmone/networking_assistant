@@ -173,6 +173,11 @@ app.include_router(companies.router, prefix="/api/v1/companies", tags=["Companie
 from .routers import jobs
 app.include_router(jobs.router, prefix="/api/v1/jobs", tags=["Job Postings"])
 
+# Include the new Generation router
+# from .routers import generation_router # Old import
+from src.web_app.routers import generation_router # New import style
+app.include_router(generation_router.router, prefix="/api/v1/generation", tags=["Lead Generation"])
+
 # --- Main execution (for running with uvicorn) ---
 # Typically you run FastAPI apps with: uvicorn src.web_app.api_main:app --reload
 # The following block is mostly for direct execution testing, not production.
