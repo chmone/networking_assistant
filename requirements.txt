@@ -2,6 +2,7 @@
 requests
 beautifulsoup4 # If doing more complex HTML parsing later
 selenium # If needed for direct browser automation later
+webdriver-manager # For managing browser drivers for Selenium
 serpapi # For interacting with SerpApi (Google Search, LinkedIn, etc.)
 
 # Database

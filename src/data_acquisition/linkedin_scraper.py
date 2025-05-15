@@ -13,6 +13,11 @@ import logging
 import requests
 from core.exceptions import ApiAuthError, ApiLimitError, DataAcquisitionError
 import datetime
+import json
+import serpapi
+from selenium.webdriver.chrome.service import Service as ChromeService
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.chrome.options import Options as ChromeOptions
 
 logger = logging.getLogger(__name__)
 
@@ -55,172 +60,185 @@ except ImportError:
             def decorator(func):
                 return func
             return decorator
-class LinkedInScraper:
-    def __init__(self, config_manager: ConfigManager = None):
-        """
-        Initializes the LinkedInScraper with a ConfigManager.
-        If no ConfigManager is provided, it attempts to create one.
-        """
-        if config_manager is None:
-            # Assuming .env is in the project root, and this script is in src/data_acquisition
-            # The path to .env needs to be relative to where ConfigManager is called from,
-            # or an absolute path. For simplicity, ConfigManager defaults to '.env' in CWD.
-            # If running this file directly for testing, CWD might be src/data_acquisition.
-            # If run from project root (e.g. main.py), CWD is project root.
-            # For robustness, one might pass an explicit path or ensure CWD.
-            # For now, relying on ConfigManager's default or hoping it's run from root.
-            # A better approach for module-level ConfigManager instantiation:
-            # project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-            # env_path = os.path.join(project_root, '.env')
-            # self.config = ConfigManager(env_file_path=env_path)
-            current_dir = os.path.dirname(os.path.abspath(__file__))
-            project_root_env = os.path.abspath(os.path.join(current_dir, '..', '..')) 
-            env_path = os.path.join(project_root_env, '.env')
-            if not os.path.exists(env_path):
-                logger.warning(f".env file not found at {env_path} for LinkedInScraper, using defaults or expecting env vars.")
-            self.config = ConfigManager(env_file_path=env_path)
-        else:
-            self.config = config_manager
-            
-        self.api_key = self.config.scraping_api_key
-        self.base_url = "https://serpapi.com/search.json" # SerpApi endpoint
-        logger.info("LinkedInScraper initialized.")
 
+class LinkedInScraper:
+    def __init__(self, config_manager: ConfigManager):
+        self.config_manager = config_manager
+        self.api_key = self.config_manager.get_config("SERPAPI_API_KEY")
         if not self.api_key:
-            logger.warning("SCRAPING_API_KEY not found in configuration. SerpApi calls will fail.")
-            # Consider raising an error if API key is absolutely essential for the class to function
-            # raise ValueError("SCRAPING_API_KEY is required for LinkedInScraper")
+            logger.warning("SERPAPI_API_KEY not found in configuration. SerpApi-based scraping will fail.")
+        
+        # Initialize the SerpApi client if we have an API key
+        self.serpapi_client = serpapi.Client(api_key=self.api_key) if self.api_key else None
+        if self.api_key and not self.serpapi_client: # Should not happen if key exists, but good check
+            logger.error("Failed to initialize SerpApi client even with API key.")
+
+        # Selenium WebDriver setup
+        self.driver = None # Initialize driver as None
+        # We might want to set up the driver on demand or explicitly call a setup method
+        # For now, let's assume it might be set up when user profile scraping is initiated.
+
+    def _setup_driver(self):
+        """Initializes and configures the Selenium WebDriver."""
+        if self.driver:
+            logger.info("WebDriver already initialized.")
+            return
+
+        try:
+            logger.info("Setting up Selenium WebDriver for Chrome...")
+            chrome_options = ChromeOptions()
+            chrome_options.add_argument("--headless")  # Run headless
+            chrome_options.add_argument("--no-sandbox") # Bypass OS security model, required for some environments
+            chrome_options.add_argument("--disable-dev-shm-usage") # Overcome limited resource problems
+            chrome_options.add_argument("--disable-gpu") # Applicable to windows os only
+            chrome_options.add_argument("user-agent=" + self.config_manager.get_config("USER_AGENT", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"))
+            
+            # Use webdriver-manager to automatically download and manage ChromeDriver
+            service = ChromeService(ChromeDriverManager().install())
+            self.driver = webdriver.Chrome(service=service, options=chrome_options)
+            logger.info("Selenium WebDriver for Chrome initialized successfully.")
+        except Exception as e:
+            logger.error(f"Error initializing Selenium WebDriver: {e}", exc_info=True)
+            self.driver = None # Ensure driver is None if setup fails
+            # Optionally re-raise or handle more gracefully depending on requirements
+
+    def close_driver(self):
+        """Closes the Selenium WebDriver if it's active."""
+        if self.driver:
+            try:
+                logger.info("Closing Selenium WebDriver.")
+                self.driver.quit()
+                self.driver = None
+                logger.info("Selenium WebDriver closed successfully.")
+            except Exception as e:
+                logger.error(f"Error closing Selenium WebDriver: {e}", exc_info=True)
+                # Driver might be in an unusable state, still set to None
+                self.driver = None
 
     @retry_with_backoff(retries=3, initial_delay=2, backoff_factor=2)
-    def _make_api_request(self, params: dict, request_description: str):
-        """Makes the actual HTTP GET request to SerpApi and handles basic response codes."""
-        logger.debug(f"Making API request for {request_description} with params: {params}")
-        response = None # Initialize response here to make it available in ValueError's except block
+    def _make_serpapi_search(self, params: dict, request_description: str):
+        """Makes a search request using the new serpapi.Client and handles basic response codes/errors."""
+        if not self.serpapi_client:
+            msg = f"SerpApi client not initialized (likely missing API key). Cannot perform {request_description}."
+            logger.error(msg)
+            raise ApiAuthError(msg, source="SerpApi")
+
+        logger.debug(f"Making SerpApi search for {request_description} with params: {params}")
+        
+        if 'engine' not in params:
+            params['engine'] = 'google' 
+            logger.warning(f"'engine' not specified for SerpApi search: {request_description}. Defaulting to 'google'.")
+
         try:
-            response = requests.get(self.base_url, params=params, timeout=20)
+            results = self.serpapi_client.search(params)
             
-            # Let raise_for_status() handle all HTTP error codes first.
-            # The specific error handling (ApiAuthError, ApiLimitError)
-            # will be done in the `except requests.exceptions.HTTPError` block.
-            response.raise_for_status() 
-
-            return response.json()
-
-        # NEW BLOCK: Catch ApiAuthError *first* to prevent decorator retry
-        except ApiAuthError as auth_err:
-            # This exception might be raised by a downstream call or logic if refactored later,
-            # or potentially directly if we modified raise_for_status handling,
-            # but the primary path is via HTTPError below.
-            # However, catching it explicitly ensures it *never* gets retried by the decorator.
-            logger.error(f"Authentication error caught directly for {request_description}: {auth_err}")
-            raise auth_err # Re-raise immediately
-
-        except requests.exceptions.HTTPError as http_err:
-            # Ensure response is available for logging, even if error occurred before response.json()
-            current_response = http_err.response if http_err.response is not None else response
-            status_code = current_response.status_code if current_response else 'N/A'
+            if "error" in results:
+                error_message = results["error"]
+                logger.error(f"SerpApi returned an error for {request_description}: {error_message}")
+                if "Authorization invalid" in error_message or "API key is invalid" in error_message:
+                    raise ApiAuthError(f"SerpApi Authentication Error: {error_message}", source="SerpApi")
+                elif "rate limit" in error_message.lower():
+                    raise ApiLimitError(f"SerpApi Rate Limit Error: {error_message}", source="SerpApi")
+                # For other errors reported by SerpApi in the 'error' field
+                raise DataAcquisitionError(f"SerpApi Error: {error_message}", source="SerpApi") 
             
-            if status_code == 401 or status_code == 403:
-                # This path should now handle the initial raising based on status code
-                logger.error(f"Authentication error for {request_description}. Status: {status_code}. Check API Key.")
-                # Raise ApiAuthError - the block above will *not* catch this specific instance
-                # because we are already inside an except block. It will propagate upwards.
-                raise ApiAuthError(f"Authentication failed for {request_description}", source="SerpApi", original_exception=http_err)
-            elif status_code == 429:
-                 # Directly raise ApiLimitError. The decorator will catch and retry this.
-                 logger.error(f"API rate limit error encountered for {request_description} (Status: {status_code}). Will attempt retry.")
-                 raise ApiLimitError(f"API rate limit error for {request_description}", source="SerpApi", original_exception=http_err)
+            return results
 
-            # For any other HTTPError (400, 500, etc.) - No longer need to check 401/403 here
-            logger.error(f"HTTPError during {request_description} (Status: {status_code}): {http_err}")
-            raise DataAcquisitionError(f"HTTP error during {request_description}", source="SerpApi", original_exception=http_err)
+        except (ApiAuthError, ApiLimitError, DataAcquisitionError) as specific_err:
+            # If one of our custom exceptions was raised above, just re-raise it
+            # This ensures the retry decorator sees the specific exception type.
+            logger.error(f"Specific data acquisition error for {request_description}: {specific_err}") # Log it here if needed
+            raise
+
+        except serpapi.SerpApiError as serp_err: 
+            logger.error(f"SerpApi library error during {request_description}: {serp_err}")
+            err_str = str(serp_err).lower()
+            if "invalid api key" in err_str or "authorization" in err_str:
+                 raise ApiAuthError(f"SerpApi Auth/Config Error: {serp_err}", source="SerpApi", original_exception=serp_err)
+            elif "rate limit" in err_str:
+                 raise ApiLimitError(f"SerpApi Rate Limit Error: {serp_err}", source="SerpApi", original_exception=serp_err)
+            # For other SerpApiError instances that don't map to Auth or Limit
+            raise DataAcquisitionError(f"SerpApi library error during {request_description}", source="SerpApi", original_exception=serp_err)
         
         except requests.exceptions.RequestException as req_err: 
-            logger.error(f"RequestException (network/timeout) during {request_description}: {req_err}")
+            logger.error(f"Network/RequestException during {request_description} via SerpApi client: {req_err}")
+            # This is typically a retryable scenario if it's transient.
+            # DataAcquisitionError might be too generic if retry logic needs to distinguish it.
+            # However, for now, keeping it as DataAcquisitionError.
             raise DataAcquisitionError(f"Network or request error during {request_description}", source="SerpApi", original_exception=req_err)
-        
-        except ValueError as json_decode_err: 
-            # Ensure response is available for logging if json decoding fails
-            response_text_snippet = response.text[:200] if response and hasattr(response, 'text') else 'N/A'
-            logger.error(f"Failed to decode JSON response for {request_description}: {json_decode_err}. Response text: {response_text_snippet}")
-            raise DataAcquisitionError(f"Invalid JSON response for {request_description}", source="SerpApi", original_exception=json_decode_err)
 
         except Exception as e: 
-            # This is a catch-all for truly unexpected errors.
-            logger.exception(f"Unexpected error in _make_api_request for {request_description}: {e}")
-            raise DataAcquisitionError(f"Unexpected error in API request for {request_description}", source="SerpApi", original_exception=e)
+            # This final catch-all is for truly unexpected errors.
+            # It should NOT catch ApiAuthError, ApiLimitError, or DataAcquisitionError already handled.
+            logger.exception(f"Unexpected error in _make_serpapi_search for {request_description}: {e}")
+            raise DataAcquisitionError(f"Unexpected error in SerpApi search for {request_description}", source="SerpApi", original_exception=e)
 
     def test_api_connection(self, test_query="Product Manager New York"):
-        if not self.api_key:
-            logger.error("Cannot test API connection: SCRAPING_API_KEY is not configured.")
-            # Consider raising ConfigError here
-            return {"status": "error", "message": "API key not configured."}
+        if not self.serpapi_client: # Check if client was initialized
+            logger.error("Cannot test API connection: SerpApi client not initialized (API key likely missing).")
+            return {"status": "error", "message": "SerpApi client not initialized."}
         
-        params = {"engine": "google", "q": test_query, "api_key": self.api_key, "num": "1"}
+        params = {"engine": "google", "q": test_query, "num": "1"} # api_key is handled by client
         request_desc = "SerpApi connection test (Google engine)"
         logger.info(f"Attempting {request_desc}...")
         try:
-            # Using _make_api_request which has retry logic
-            data = self._make_api_request(params, request_desc)
-            # A successful response from SerpApi usually has a 'search_metadata' field
+            data = self._make_serpapi_search(params, request_desc)
             if data and isinstance(data, dict) and 'search_metadata' in data:
                 logger.info(f"{request_desc} successful. Search ID: {data['search_metadata'].get('id')}")
                 return {"status": "success", "data": data['search_metadata']}
-            else:
-                logger.warning(f"{request_desc} returned unexpected data structure: {str(data)[:200]}")
-                return {"status": "warning", "message": "Unexpected response structure from API.", "data": data}
+            else: # Should be caught by error handling in _make_serpapi_search if 'error' key exists
+                logger.warning(f"{request_desc} returned unexpected data structure or was caught as error: {str(data)[:200]}")
+                return {"status": "warning", "message": "Unexpected response structure or error from API.", "data": data}
         except DataAcquisitionError as e:
             logger.error(f"{request_desc} failed after retries: {e}")
             return {"status": "error", "message": str(e)}
-        except Exception as e: # Catch any other unexpected errors during this specific test method
+        except Exception as e: 
             logger.exception(f"Unexpected error during {request_desc}: {e}")
             return {"status": "error", "message": f"Unexpected error: {str(e)}"}
 
     def scrape_alumni_by_school(self, school_name, max_results=100):
-        if not self.api_key: 
-            msg = "SCRAPING_API_KEY not configured for LinkedInScraper, cannot scrape alumni."
+        if not self.serpapi_client: 
+            msg = "SerpApi client not initialized. Cannot scrape alumni."
             logger.error(msg)
-            # raise ConfigError(msg) # Or raise ConfigError for stricter handling
             return []
         
         query = f'"{school_name}" site:linkedin.com/in/'
         params = {
-            "engine": "google", "q": query, "api_key": self.api_key,
-            "num": str(max_results) if max_results <= 100 else "100",
+            "engine": "google", "q": query,
+            "num": str(max_results) if max_results <= 100 else "100", # SerpApi typically caps at 100 for 'num'
             "gl": "us", "hl": "en"
-        }
+        } # api_key is handled by client
         request_desc = f"alumni search for '{school_name}'"
         logger.info(f"Preparing for {request_desc}")
         try:
-            data = self._make_api_request(params, request_desc)
+            data = self._make_serpapi_search(params, request_desc)
             logger.info(f"Successfully received and parsed response for {request_desc}")
             return self._parse_linkedin_results(data, source=f"Alumni Search: {school_name}")
         except DataAcquisitionError as dae:
             logger.error(f"Data acquisition failed for {request_desc} after retries: {dae}")
             return []
-        except Exception as e: # Catch other unexpected errors during parsing or flow
+        except Exception as e: 
             logger.exception(f"Unexpected error processing {request_desc}: {e}")
             return []
 
     def scrape_pms_by_location(self, location="New York City", keywords=None, max_results=100):
-        if not self.api_key: 
-            msg = "SCRAPING_API_KEY not configured for LinkedInScraper, cannot scrape PMs."
+        if not self.serpapi_client:
+            msg = "SerpApi client not initialized. Cannot scrape PMs."
             logger.error(msg)
-            # raise ConfigError(msg)
             return []
 
-        if keywords is None: keywords = self.config.pm_keywords
+        if keywords is None: keywords = self.config_manager.get_config("PM_KEYWORDS", [])
         keyword_string = ' OR '.join([f'"{k}"' for k in keywords])
         query = f'({keyword_string}) "{location}" site:linkedin.com/in/'
         params = {
-            "engine": "google", "q": query, "api_key": self.api_key,
+            "engine": "google", "q": query,
             "num": str(max_results) if max_results <= 100 else "100",
             "gl": "us", "hl": "en"
-        }
+        } # api_key is handled by client
         request_desc = f"PM search in '{location}'"
         logger.info(f"Preparing for {request_desc}")
         try:
-            data = self._make_api_request(params, request_desc)
+            data = self._make_serpapi_search(params, request_desc)
             logger.info(f"Successfully received and parsed response for {request_desc}")
             return self._parse_linkedin_results(data, source=f"PM Search: {location}")
         except DataAcquisitionError as dae:
@@ -278,53 +296,57 @@ class LinkedInScraper:
                 role_company_parts = title_remainder.split(' at ', 1)
                 current_role = role_company_parts[0].strip()
                 company_name = role_company_parts[1].strip()
-            elif " - " in title_remainder: # Try splitting by " - " if " at " not found
-                role_company_parts = title_remainder.rsplit(' - ', 1) # Split by the last hyphen
+            elif " - " in title_remainder: 
+                role_company_parts = title_remainder.rsplit(' - ', 1) 
                 current_role = role_company_parts[0].strip()
                 if len(role_company_parts) > 1:
                     company_name = role_company_parts[1].strip()
-                else: # Only a role was found in title_remainder
+                else: 
                     company_name = ""
             else:
-                 # If not in title or only a role in title, maybe the first part of the snippet?
                  if snippet:
-                     # Simplistic: assume first sentence or part before a common delimiter might contain role/company
-                     # This is highly heuristic and likely needs refinement
                      first_sentence = snippet.split('.')[0]
                      if " at " in first_sentence.lower():
                          role_company_parts = first_sentence.split(' at ', 1)
                          current_role = role_company_parts[0].strip()
                          company_name = role_company_parts[1].strip()
                      else:
-                         # Last resort: if title_remainder had something but wasn't parsable above, use it as role
-                         # and company will remain empty unless found in snippet
-                        if not current_role: # Only if not already set from title_remainder variants
+                        if not current_role: 
                             current_role = title_remainder or ""
 
-            # Location might be mentioned in the snippet
-            location_val = "" # EXPLICITLY Reset location for each result item
+            location_val = "" 
             if snippet:
+                # Try specific "Location:" marker first
                 if "Location:" in snippet:
                      loc_parts = snippet.split("Location:", 1)
                      if len(loc_parts) > 1:
-                         # Take first part after "Location:", trim potential extra details
                          location_val = loc_parts[1].split('\n')[0].split(' · ')[0].strip()
-                # IMPORTANT: Use 'elif' to ensure only ONE block sets the location
-                elif ' · ' in snippet:
-                    # Assume location is before the first '·' if "Location:" isn't present
+                
+                # If not found, try parsing based on common patterns like "Company | Location."
+                # This is heuristic and might need refinement.
+                if not location_val and company_name and "|" in snippet: 
+                    # Look for "Company Name | Location" like pattern
+                    # Example: "Innovate Inc. | New York."
+                    company_snippet_part = snippet.split(company_name, 1)
+                    if len(company_snippet_part) > 1:
+                        after_company = company_snippet_part[1].strip()
+                        if after_company.startswith("|"):
+                            potential_loc_part = after_company[1:].split('.', 1)[0].split('·', 1)[0].strip()
+                            if potential_loc_part and len(potential_loc_part) < 50: # Basic sanity check
+                                location_val = potential_loc_part
+                
+                # If still not found, try the ' · ' delimiter as a fallback
+                if not location_val and ' · ' in snippet:
                     potential_loc = snippet.split(' · ', 1)[0].strip()
-                    # Basic sanity check: does it look like a location?
-                    # Avoid things like "500+ connections" or "Software Engineer at..."
                     if 'connection' not in potential_loc.lower() and \
                        ' at ' not in potential_loc.lower() and \
-                       len(potential_loc) < 50: # Arbitrary length limit
+                       len(potential_loc) < 50: 
                         location_val = potential_loc
-                    # If the sanity check fails, location_val remains ""
 
             # Alma mater match - requires comparing snippet/title against config.target_schools
             alma_mater_match = []
             search_text = (title + " " + snippet).lower()
-            for school in self.config.target_schools:
+            for school in self.config_manager.get_config("TARGET_SCHOOLS", []):
                 if school.lower() in search_text:
                     alma_mater_match.append(school)
             
@@ -348,49 +370,46 @@ class LinkedInScraper:
         logger.info(f"Parsed {len(leads)} potential leads from source: {source}")
         return leads
 
-    def scrape_user_profile_details(self, profile_url: str) -> dict:
+    def scrape_user_profile_details(self, linkedin_url: str):
         """
-        Scrapes detailed information (education, experience, skills)
-        from a specific LinkedIn profile URL.
-
-        Args:
-            profile_url: The full URL of the LinkedIn profile to scrape.
-
-        Returns:
-            A dictionary containing structured profile data, or an empty dict if scraping fails.
+        (Placeholder) Scrapes detailed information from a specific user's LinkedIn profile URL.
+        This will be implemented using Selenium.
         """
-        logger.info(f"Attempting to scrape profile details from URL: {profile_url}")
+        logger.info(f"Attempting to scrape profile details for: {linkedin_url} (Currently a stub)")
+        
+        # Ensure driver is set up before trying to use it
+        if not self.driver:
+            self._setup_driver()
+        
+        if not self.driver: # If setup failed
+            logger.error("WebDriver not available. Cannot scrape user profile.")
+            return {
+                "error": "WebDriver initialization failed.",
+                "linkedin_url": linkedin_url,
+                "details_stub": "Failed to initialize Selenium WebDriver."
+            }
 
-        # TODO: Implement actual Selenium-based scraping logic here.
-        # This will involve:
-        # 1. Initializing WebDriver.
-        # 2. Navigating to profile_url.
-        # 3. Handling login/authentication if necessary.
-        # 4. Waiting for page content to load (especially dynamic content).
-        # 5. Parsing HTML (e.g., with BeautifulSoup) to find sections for:
-        #    - Full Name, Headline
-        #    - Education (institution, degree, dates)
-        #    - Experience (company, title, dates, description)
-        #    - Skills
-        # 6. Structuring the extracted data.
-        # 7. Error handling (profile not found, private, network issues, changes in LinkedIn HTML).
-        # 8. Closing WebDriver.
+        # --- Placeholder for actual Selenium scraping logic --- 
+        # Example: self.driver.get(linkedin_url)
+        #         # ... find elements, extract data ...
+        # For now, just return a stub indicating it was called
+        # --- End Placeholder ---
 
-        # For now, returning placeholder data:
-        placeholder_data = {
-            "profile_url": profile_url,
-            "full_name": "John Doe (Placeholder)",
-            "headline": "Software Engineer at Placeholder Inc.",
-            "education": [
-                {"institution": "University of Placeholder", "degree": "B.S. Computer Science", "years": "2010-2014"}
-            ],
+        # Important: Decide if driver should be closed here or managed externally
+        # For now, let's assume it's managed externally or closed after a batch of operations.
+        # self.close_driver() 
+
+        return {
+            "linkedin_url": linkedin_url,
+            "full_name": "John Doe (Stub)",
+            "headline": "Software Engineer at Innovate Corp (Stub)",
             "experience": [
-                {"title": "Senior Developer", "company": "FakeCorp", "duration": "2 years", "description": "Developed things.", "location": "Placeholder City"}
+                {"title": "Senior Developer", "company": "Tech Solutions (Stub)", "duration": "2 years"}
             ],
-            "skills": ["Python", "FastAPI", "SQL", "PlaceholderSkill"],
-            "status": "scraped_placeholder"
+            "education": [
+                {"institution": "State University (Stub)", "degree": "B.S. Computer Science"}
+            ],
+            "skills": ["Python", "Selenium", "FastAPI (Stub)"]
         }
-        logger.info(f"Returning placeholder data for {profile_url}")
-        return placeholder_data
 
 # Removed __main__ block, testing should be done via test_linkedin_scraper.py 
