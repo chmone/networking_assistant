@@ -1,49 +1,95 @@
 **Project:** `networking_assistant`
-**Session Goal:** Re-initialize project on a new machine, fix failing tests, resolve warnings, and prepare for next steps.
+**Session Goal (Previous):** Re-initialize project, fix tests, resolve warnings, and prepare for next steps.
+**Session Goal (This Session):** Conduct a full review of the codebase against the PRD to understand current implementation, logical flow, and identify gaps for achieving the PRD\'s vision.
 
-**Previous State:** Project moved to a new machine. `pytest` runs failing due to various issues.
+**Work Completed (Previous Session - Summarized):**
+*   Project re-initialized, dependencies installed, all (416) tests passing.
+*   Key deprecation warnings (FastAPI `on_event`, SQLAlchemy `utcnow`) resolved.
+*   `current_state.txt` initialized.
+*   Git commit/push issues related to local terminal environment and GitHub secret scanning were discussed and resolved by the user manually.
 
-**Work Completed in This Session:**
-1.  **Project Re-initialization:**
-    *   Ran `task-master init` successfully.
-    *   Attempted `task-master list`, which failed due to missing `tasks/tasks.json` (not typically version controlled). Skipped task review for now.
-2.  **Dependency Installation:**
-    *   Identified `ModuleNotFoundError` for `selenium`, `freezegun`, and `email-validator` during test runs.
-    *   Ran `pip install -r requirements.txt` to install base dependencies.
-    *   Ran `pip install freezegun \"pydantic[email]\"` to install missing test/validation dependencies.
-    *   Updated `requirements.txt` to include `freezegun` and `pydantic[email]`.
-3.  **Test Fixing (`tests/data_acquisition/test_linkedin_scraper.py`):**
-    *   Addressed initial `ImportError` for `selenium`.
-    *   Debugged `AssertionError: Expected ApiAuthError to be raised` failures in `TestLinkedInScraperMakeApiRequest`. This involved several iterations:
-        *   Modified `_make_api_request` in `linkedin_scraper.py` to catch `ApiAuthError` explicitly.
-        *   Modified `@retry_with_backoff` decorator in `retry_utils.py` to *not* retry `ApiAuthError`.
-        *   Refactored tests to correctly mock `requests.exceptions.HTTPError` and use `pytest.raises`.
-        *   Identified and fixed `NameError` related to exception imports by changing `from core.exceptions import X` to `import core.exceptions` and using fully qualified names (e.g., `core.exceptions.ApiAuthError`) in `isinstance` checks. This resolved the core assertion failures.
-    *   Fixed assertion errors in other `test_linkedin_scraper.py` tests (`test_make_request_json_decode_error`, `test_api_connection_api_error`) related to incorrect call count assertions and `NameError` for exceptions.
-    *   Achieved 100% pass rate (36/36) for `tests/data_acquisition/test_linkedin_scraper.py`.
-4.  **Full Test Suite Run & Warning Resolution:**
-    *   Ran `pytest -v` on the whole project.
-    *   Resolved 6 test collection errors by installing `freezegun` and `pydantic[email]`.
-    *   Achieved 100% pass rate (416/416) for the entire test suite.
-    *   Resolved FastAPI `on_event` deprecation warnings by refactoring `src/web_app/api_main.py` to use the `lifespan` context manager.
-    *   Resolved SQLAlchemy `utcnow()` deprecation warnings by modifying timestamp defaults in `src/database/models.py` to use `lambda: datetime.datetime.now(datetime.UTC)`. Fixed associated import errors caused by the edit.
-    *   Confirmed all tests still pass after warning fixes.
+**Full Code Review & PRD Alignment (This Session):**
 
-**Current Status:**
-*   **Code:** All tests (416/416) are passing. Deprecation warnings for FastAPI and SQLAlchemy have been addressed.
-*   **Warnings:** 24 `PydanticDeprecatedSince20` warnings related to `.dict()` remain. These appear internal to `TestClient`/FastAPI/Pydantic interactions and not directly caused by user code needing `.model_dump()` replacement. Accepted for now.
-*   **Taskmaster:** `tasks/tasks.json` is missing as it was likely not version controlled. Taskmaster commands requiring this file (like `list`, `next`) will fail.
-*   **Code Cleanup:** A quick search revealed commented-out lines/blocks, but no obviously removable large sections of outdated code were identified without a deeper analysis.
+**1. Overall Architecture & UI Intent:**
+    *   The project uses FastAPI to create a backend API (`src/web_app/api_main.py`).
+    *   Routers are in place for CRUD operations on Leads, Companies, and Job Postings (`src/web_app/routers/`).
+    *   CORS is configured, indicating a web UI is expected.
+    *   **PRD Alignment:** A UI is a core requirement.
+    *   **Finding:** No UI code appears to be present in the current project structure. UI development is likely a future task.
 
-**Blocker:**
-*   Cannot use Taskmaster features (`list`, `next`, `expand`, etc.) until `tasks.json` is restored or regenerated.
+**2. Core Lead Generation Workflow (PRD vs. Implementation):**
 
-**Next Steps (for next agent/session):**
-1.  **Restore/Regenerate `tasks.json`:**
-    *   Option A (Preferred): Obtain the `tasks.json` file from the original machine and place it in the `tasks/` directory.
-    *   Option B: Re-run `npx task-master-ai parse-prd --input scripts/prd.txt --force` to generate a new `tasks.json` (Note: This will reset all task statuses and potential manual modifications/subtasks).
-2.  **Resume Development:** Once Taskmaster is functional:
-    *   Run `npx task-master-ai list` to review the task list.
-    *   Run `npx task-master-ai next` to identify the next task based on the restored/regenerated state.
-    *   Continue development according to the PRD and the Taskmaster plan.
-3.  **Commit Changes:** The changes made in this session (test fixes, warning fixes, `requirements.txt`, `current_state.txt`) need to be committed and pushed. 
+    *   **PRD Envisioned User-Driven Workflow:**
+        1.  User inputs their LinkedIn profile URL and networking goals (target companies/roles).
+        2.  System scrapes the user's profile (education, experience, skills).
+        3.  System performs targeted LinkedIn searches for alumni from the user's school at target companies OR in target roles.
+        4.  System scrapes potential lead profiles (deeper details).
+        5.  Leads are ranked (strength of connection, relevance).
+        6.  LLM is used to summarize lead profiles, identify networking angles, and suggest outreach messages.
+
+    *   **Current Implemented Workflow (`Orchestrator.run_linkedin_workflow`):**
+        *   **Input:** Uses pre-configured/default keywords (e.g., "Product Manager") and locations (e.g., "New York, NY") from `config_manager` OR accepts a list of such generic search queries. **Does not take user's LinkedIn profile URL or dynamically use user-specific alumni/target info.**
+        *   **Lead Discovery (`LinkedInScraper`):**
+            *   Uses SerpApi (Google Search API) to search `site:linkedin.com/in/` based on the generic keywords/locations.
+            *   It *can* scrape by school (`scrape_alumni_by_school`), but this is not currently integrated into the main `run_linkedin_workflow` in a user-driven way.
+            *   **Finding:** Relies on SERP data, not deep scraping of individual lead profiles (aligns with PRD V1 approach).
+        *   **Enrichment (`LeadProcessor` & `CompanyScraper`):**
+            *   Attempts to find company LinkedIn URLs (via `CompanyScraper` using SerpApi) for companies parsed from lead search results.
+            *   Extracts basic company details.
+        *   **Filtering & Ranking (`LeadProcessor`):**
+            *   Filters leads based on location, role keywords, and a preference for mid-level (non-senior) roles (all from config).
+            *   Scores leads based on these matches and if company data was found.
+        *   **Storage:** Saves processed leads to the database.
+        *   **LLM Integration:** **No LLM integration found** in the current data acquisition, processing, or orchestration flow.
+
+**3. Detailed Component Analysis:**
+    *   **`src/web_app/api_main.py`:** FastAPI app setup, includes routers.
+    *   **`src/web_app/routers/leads.py`:** Standard CRUD endpoints for `Lead` objects. **No endpoint currently exists to trigger the automated, user-driven lead generation workflow.**
+    *   **`src/data_acquisition/linkedin_scraper.py`:**
+        *   Uses SerpApi to search Google for LinkedIn profiles.
+        *   Methods: `scrape_alumni_by_school`, `scrape_pms_by_location`.
+        *   Parses search results; does not perform deep scraping of individual LinkedIn profiles.
+    *   **`src/data_acquisition/company_scraper.py`:** Uses SerpApi to find company LinkedIn URLs and basic company info.
+    *   **`src/core/orchestrator.py`:**
+        *   `run_linkedin_workflow` method orchestrates the current lead generation.
+        *   Initiates `LinkedInScraper`, `CompanyScraper`, `LeadProcessor`.
+        *   Currently calls `linkedin_scraper.scrape_pms_by_location` based on general config, not dynamically from user profile data.
+    *   **`src/data_processing/lead_processor.py`:**
+        *   Cleans, enriches (with company data), filters (location, keywords, seniority), and scores leads.
+        *   Ranking logic is present here.
+    *   **`src/data_processing/data_cleaner.py`:** (Existence noted, not deeply reviewed but assumed to handle data normalization).
+
+**4. Key Gaps Compared to Full PRD Vision:**
+
+    *   **User-Driven Workflow Initiation:**
+        *   No API endpoint to accept user's LinkedIn URL and specific networking goals.
+        *   `Orchestrator` doesn't currently process a specific user's profile to drive searches.
+    *   **User Profile Scraping:** Logic to scrape a *given user's own LinkedIn profile* to extract their school, experience, etc., is missing.
+    *   **Targeted Alumni Search Integration:** While `LinkedInScraper` *can* search by school, this isn't dynamically used in `Orchestrator` based on a scraped user profile. The connection between "user's alma mater" and "alumni search" is not automated.
+    *   **Deep Lead Profile Scraping:** Current system uses SERP data (V1 PRD approach). Full profile data extraction (skills, detailed experience) is not implemented.
+    *   **LLM Integration for Qualitative Analysis:** Completely missing. No LLM calls for profile summarization, identifying networking angles, or generating outreach messages.
+    *   **UI Development:** No UI code found in the project.
+
+**Current Overall Status & Next Steps for Next Agent/Session:**
+
+*   **Codebase Health:** All tests pass, some major warnings addressed. The backend API structure is in place. Core components for data acquisition (via SerpApi), rule-based processing, and database interaction exist.
+*   **Taskmaster:** `tasks/tasks.json` is likely missing (as it's not version controlled). Taskmaster commands requiring this file will fail. The first step for the next session should be to restore/regenerate this (Option A: obtain from original machine; Option B: re-parse `scripts/prd.txt` knowing this resets task states).
+*   **Primary Focus for PRD Alignment:**
+    1.  **Implement User Input & Profile Analysis:**
+        *   Create an API endpoint (e.g., in `leads.py` or a new `generation_router.py`) to accept a user's LinkedIn URL and networking goals (target companies, roles).
+        *   Develop functionality (likely in `LinkedInScraper` or a new module) to scrape the provided user's LinkedIn profile to extract their alma mater(s), experience, and skills.
+    2.  **Integrate User Data into Search Strategy:**
+        *   Modify `Orchestrator.run_linkedin_workflow` (or create a new workflow method) to use the scraped user data.
+        *   Dynamically call `linkedin_scraper.scrape_alumni_by_school` using the user's alma mater(s).
+        *   Refine search queries to use the user's target companies and roles in conjunction with alumni or keyword searches.
+    3.  **Implement LLM Features:**
+        *   Choose an LLM provider/library (e.g., OpenAI, Anthropic, Hugging Face Transformers/Langchain).
+        *   Create a new service/module (e.g., `src/llm_services/analysis_service.py`).
+        *   Integrate LLM calls into the `LeadProcessor` or `Orchestrator` after leads are found/filtered to:
+            *   Summarize lead profiles.
+            *   Identify key networking angles based on comparing user's profile to lead's profile.
+            *   Draft outreach message suggestions.
+    4.  **UI Development:** Begin planning and developing the user interface that will interact with these new backend endpoints.
+    5.  **Consider Deep Lead Scraping (Post V1):** Evaluate adding functionality to scrape individual lead LinkedIn profiles more deeply if SERP data proves insufficient (PRD V2+ feature).
+
+*   **Commit Changes:** The changes made in the previous session (test fixes, warning fixes, `requirements.txt`, `current_state.txt` updates) have been pushed manually by the user. Any further changes in *this* review session (i.e., this `current_state.txt` update) will need to be committed. 
