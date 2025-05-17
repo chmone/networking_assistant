@@ -17,6 +17,7 @@ python-dotenv
 fastapi
 uvicorn[standard] # Includes standard dependencies like websockets, needed for Uvicorn server
 pydantic[email] # For robust email validation in Pydantic models
+httpx # For asynchronous HTTP requests, used in OAuth service
 
 # Job Board APIs (Specific libraries if available, otherwise requests is used)
 # (No specific libraries added yet)

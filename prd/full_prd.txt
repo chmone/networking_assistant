@@ -10,14 +10,14 @@ The core problem this project aims to solve is the highly time-consuming, repeti
 This individual experience is reflective of broader frustrations among job seekers. The job application process is frequently described as "extremely time-consuming". Many individuals resort to cumbersome methods like maintaining Excel spreadsheets to keep track of applications and proprietary company information. A common sentiment is the experience of "wasting hours on LinkedIn and Indeed only to find out that the best way to apply for jobs is on individual company websites". The entire endeavor can feel like a "job itself," characterized by the laborious tasks of tracking applications, repeatedly retyping the same information, and often facing a lack of response or "ghosting" from potential employers. The prevalence of these pain points across a wide range of job seekers underscores that the manual process is not merely a personal inconvenience but a widely recognized systemic inefficiency. This shared experience strongly validates the potential benefits of an automation tool like the proposed Research Agent, positioning it as a solution to a significant and common challenge.   
 
 1.3. User Goal: Automate Research for Curated, Contextualized Job and Networking Leads
-The primary goal for the user in undertaking this project is to automate the laborious and repetitive aspects of their research. This automation is intended to yield a curated list of job and networking leads. Crucially, these leads should be enriched with contextual insights, such as the identification of mutual connections, an understanding of a company's product focus, and data on company size. This contextual information is vital for personalizing outreach and assessing the potential fit of an opportunity or contact. The strategic intent behind this tool is clear: "It’s not for your job—but it’s about landing your next one."
+The primary goal for the user in undertaking this project is to automate the laborious and repetitive aspects of their research. This automation is intended to yield a curated list of job and networking leads. Crucially, these leads should be enriched with contextual insights, such as the identification of mutual connections, an understanding of a company's product focus, and data on company size. This contextual information is vital for personalizing outreach and assessing the potential fit of an opportunity or contact. The strategic intent behind this tool is clear: "It's not for your job—but it's about landing your next one."
 
 1.4. Product Vision: A Smart, Automated Assistant to Streamline the Job Search and Networking Process
 The vision for the Research Agent is that of an intelligent, automated assistant designed to significantly streamline the user's job search and networking activities. In its ideal end-state, the tool will proactively identify and present high-quality job and networking opportunities tailored to the user's specific criteria and background. By automating the most tedious aspects of the research process, the Research Agent aims to free up the user's time and mental energy, allowing for a more focused and strategic approach to career development. The ultimate aim is to transform the search for leads from a reactive, manual slog into a proactive, data-driven pursuit, providing not just raw data, but actionable intelligence.
 
 Target User Profile
 2.1. Primary User Description
-The primary user of the Research Agent is an individual with a proactive approach to career development. This user likely possesses a background in or a strong aspiration towards product management, evidenced by their focus on PM roles and their familiarity with relevant technologies (e.g., Python, APIs, web scraping concepts). They are alumni of Questrom and University School and are specifically targeting product management opportunities and contacts within the New York City area. Their technical proficiency suggests an ability to understand and potentially contribute to the development or refinement of such a tool.
+The primary user of the Research Agent is an individual with a proactive approach to career development. This user likely possesses a background in or a strong aspiration towards product management, evidenced by their focus on PM roles and their familiarity with relevant technologies (e.g., Python, APIs, web scraping concepts). They are alumni of Questrom and University School and are specifically targeting product management opportunities and contacts within the New York City area. Their technical proficiency suggests an ability to understand and potentially contribute to the development or refinement of such a tool, and they are looking to define specific networking goals to make the tool more effective.
 
 2.2. Key Needs & Pain Points (Elaborated)
 The user's requirements and the problems they face drive the core functionality of the Research Agent:
@@ -92,6 +92,15 @@ A significant operational consideration for the job board integration feature is
 
 For Greenhouse, the board_token is generally found by manually inspecting the URL of a company's career page that is powered by Greenhouse. Programmatic discovery of these tokens is not a feature directly supported by the Greenhouse API. While services like Apify offer scrapers that might extract Greenhouse jobs, this involves using their platform and may not directly yield the board token itself.   
 For Lever, the situation appears similar. The provided information does not detail a method for programmatically discovering a company's unique Lever API identifier from their career page. This presents a challenge: for the Research Agent to automatically check any newly discovered company for open roles, it will likely not know that company's specific job board token or identifier. This implies that the user might need to manually find and input these tokens for each company they wish to track, or the tool would require a highly sophisticated (and potentially fragile) secondary scraping or inference mechanism to attempt to discover these tokens from company career pages. This factor could limit the scalability of automatically checking a broad range of companies unless a curated list of company board tokens is maintained by the user or the tool.   
+3.1.4. User Networking Goals & Preferences Definition
+To ensure the Research Agent provides highly relevant and personalized results, the user will be able to define and store their specific networking and job search preferences. This includes:
+- Target Roles: Specific job titles or levels (e.g., "Product Manager", "Senior Product Manager", excluding entry-level or executive roles unless specified).
+- Target Industries: Preferred industries (e.g., FinTech, HealthTech, SaaS).
+- Target Company Stages: Desired company maturity (e.g., Startup, Series A/B/C, Public).
+- Target Locations: Primary and secondary geographic areas of interest (defaulting to NYC but configurable).
+- Key Skills/Keywords: Specific skills, technologies, or topics to prioritize when matching profiles or job descriptions.
+These preferences will be stored in the internal database and utilized by various modules (data acquisition, curation, insight generation) to filter, prioritize, and contextualize information, making the assistant significantly more effective and tailored to the user's active goals.
+
 3.2. Lead Curation & Contextualization
 
 3.2.1. Filtering Logic
@@ -128,11 +137,11 @@ Company Product Focus: Text (brief summary from company scrape)
 Company Size: Text or Number (e.g., "100-500 employees")
 Open PM Roles at Company: URL (link to job posting on Lever/Greenhouse) or Text ("Yes -", "No")
 Date Added: Created Time (automatically set by Notion)
-Status: Select (User-defined for tracking, e.g., New, To Contact, Contacted, Informational Interview Scheduled, Follow-up Needed, Applied)
-Notes: Rich Text (for user's private annotations)
+Status: Select (User-defined for tracking, e.g., New, To Contact, Contacted, Informational Interview Scheduled, Follow-up Needed, Applied, Offer Stage, Deferred)
+Notes: Rich Text (for user's private annotations, observations, and next steps)
 Authentication with the Notion API will be managed using an internal integration token, configured by the user. The tool will map extracted data to the appropriate Notion property types (e.g., text, URL, select, multi-select, date, rich text).   
 
-The export to Notion, particularly with the inclusion of fields like 'Status' and 'Notes,' elevates the tool's utility beyond simple data aggregation. It effectively transforms the Notion database into a lightweight, personalized Customer Relationship Management (CRM) system. This enables the user to manage their networking outreach, track application progress, and maintain a history of interactions for each lead, thereby creating an interactive dashboard for their job search and networking pipeline.
+The export to Notion, particularly with the inclusion of fields like 'Status' and 'Notes,' and the ability to customize status options, elevates the tool's utility beyond simple data aggregation. It effectively transforms the Notion database into a lightweight, personalized Customer Relationship Management (CRM) system. This enables the user to manage their networking outreach, track application progress, and maintain a history of interactions for each lead, thereby creating an interactive dashboard for their job search and networking pipeline.
 
 3.3.2. Local Dashboard (Streamlit or Flask)
 As an alternative or complement to Notion, leads can be displayed on a local dashboard.
@@ -141,11 +150,11 @@ Streamlit: This Python library is well-suited for rapid development of data-cent
 Pros: Offers a low-code approach, many pre-built UI components, and is excellent for quick visualization and interaction. Setting up pages, sidebars, loading data (e.g., from CSV or Pandas DataFrames), and using interactive widgets like select boxes for filtering are straightforward. Its ease of use for turning Python scripts into interactive dashboards is a key advantage.   
 Cons: May be less flexible for highly customized UI/UX or very complex application logic compared to a full web framework like Flask.
 Flask: A more versatile micro web framework for Python.   
-Pros: Offers greater flexibility and control, making it suitable for more complex applications or if fine-grained control over HTML, CSS, and JavaScript is required. Many pre-built Flask dashboard templates and extensions are available. Extensions like Flask-MonitoringDashboard demonstrate its capacity for building sophisticated tools.   
+Pros: Offers greater flexibility and control, making it suitable for more complex applications or if fine-grained control over HTML, CSS, and JavaScript is required. Many pre-built Flask dashboard templates and extensions are available. Extensions like Flask-MonitoringDashboard demonstrate its capacity for building sophisticated tools. The backend APIs developed with Flask should be designed comprehensively to serve not only the initial web dashboard but also potential future clients like a more advanced web application or a browser extension.
 Cons: Has a steeper learning curve for dashboarding tasks compared to Streamlit and typically requires more boilerplate code to achieve similar UI functionality.
-Dashboard Features: The local dashboard should display leads in a tabular format, allow for basic filtering and sorting based on key criteria (e.g., alma mater, role, company), show the contextual insights gathered for each lead, and potentially provide direct links to the lead's LinkedIn profile or the corresponding Notion page item.
+Dashboard Features: The local dashboard should display leads in a tabular format, allow for basic and advanced filtering (based on user-defined preferences from 3.1.4) and sorting based on key criteria (e.g., alma mater, role, company, relevance score). It should show the contextual insights gathered for each lead, and provide lead management functionalities such as status tracking (e.g., contacted, replied, meeting scheduled), adding notes, and prioritization or tagging. It should also provide direct links to the lead's LinkedIn profile or the corresponding Notion page item.
 
-Decision Factor: For a personal tool primarily focused on presenting curated data with some interactive filtering, Streamlit is likely the faster and more straightforward option to implement. If the user envisions more complex interactions, a highly custom user interface, or plans to add significant backend logic beyond data presentation, Flask would be the more appropriate choice.
+Decision Factor: For a personal tool primarily focused on presenting curated data with some interactive filtering, Streamlit is likely the faster and more straightforward option to implement for an initial version. If the user envisions more complex interactions, a highly custom user interface, or plans to add significant backend logic beyond data presentation, Flask (with a robust API-first design) would be the more appropriate choice for long-term scalability and to support future clients like a browser extension.
 
 3.3.3. Plain Text File Export (.txt)
 As a simple and universally accessible option, the Research Agent will offer the ability to export the curated leads to a plain text (.txt) file.
@@ -180,9 +189,11 @@ The following user stories capture the key motivations and desired outcomes for 
 4.2. NYC Product Manager Scouting: "As a job seeker targeting PM roles in NYC, I want to automatically identify product managers working in NYC, so that I can understand the landscape and find individuals for informational interviews."
 4.3. Identifying Mid-Level PMs: "As a user, I want the tool to filter and highlight mid-level Product Managers, so I can focus my networking efforts on peers and those slightly ahead in their careers."
 4.4. Cross-Referencing with Open Roles: "As a user, when I see a promising contact, I want to quickly know if their company is hiring for PM roles in NYC, so I can tailor my outreach or apply directly."
-4.5. Consolidating Leads in Notion: "As a user, I want all identified leads and their contextual information to be exported to a Notion database, so I can track my interactions and manage my networking pipeline in one place."
-4.6. Reviewing Leads on a Dashboard: "As a user, I want to view my curated leads on a simple local dashboard, so I can quickly review new findings and decide on next steps without opening multiple browser tabs."
+4.5. Consolidating Leads in Notion: "As a user, I want all identified leads and their contextual information to be exported to a Notion database with fields for status tracking and notes, so I can track my interactions and manage my networking pipeline in one place."
+4.6. Reviewing Leads on a Dashboard: "As a user, I want to view my curated leads on a simple local dashboard with filtering, sorting, and lead management features (status, notes), so I can quickly review new findings and decide on next steps without opening multiple browser tabs."
 4.7. Exporting Leads to Text File: "As a user, I want the option to export my curated leads to a simple.txt file, so I can have a portable, universally readable list for quick reference or basic archiving."
+4.8. Defining Networking Preferences: "As a user, I want to define my specific networking goals and job search criteria (target roles, industries, company size, location, keywords) within the application, so that the leads and insights generated are highly personalized and relevant to my current objectives."
+
 Technical Considerations & Proposed Architecture
 5.1. Detailed LinkedIn Scraping Strategy
 The approach to scraping LinkedIn data is critical due to the platform's sophisticated anti-scraping measures.
@@ -230,7 +241,19 @@ While the primary outputs are direct export to Notion or display on a transient 
 Optional Local Cache: Scraped data (e.g., from LinkedIn, company pages) can be temporarily stored locally in formats like CSV files or an SQLite database. This can be useful for:
 Debugging the parsing and processing logic.
 Avoiding the need to re-scrape data if an export process fails or if the tool is run multiple times for testing.
-Building resilience into the data pipeline. SQLite is noted as a database persistence option for some Flask dashboard templates, indicating its suitability for lightweight local storage.   
+Building resilience into the data pipeline. SQLite is noted as a database persistence option for some Flask dashboard templates, indicating its suitability for lightweight local storage. The internal database (e.g., SQLite) will also house core application data, including:
+- UserProfile Table (for authenticated user's data from OAuth & LinkedIn API - to be added/detailed in a future PRD version focusing on user authentication)
+- UserPreferences Table:
+  - user_id: String (Links to UserProfile, Primary Key)
+  - target_roles: JSON or Text (List of target job titles)
+  - target_industries: JSON or Text (List of target industries)
+  - target_company_stages: JSON or Text (e.g., startup, Series B, public)
+  - target_locations: JSON or Text (List of preferred locations)
+  - keywords_for_matching: JSON or Text (Skills or topics to prioritize)
+  - last_updated: Datetime
+- Lead Table: (For discovered leads, schema to be detailed, potentially linking to UserProfile if a lead is a known connection, and referencing UserPreferences for scoring/relevance).
+- (Other tables like CompanyTable, JobPostingTable as needed).
+
 5.4. Frontend/Dashboard Implementation
 The choice of framework for the local dashboard depends on the desired complexity and development speed.
 
@@ -247,6 +270,7 @@ To accelerate UI development, consider using a pre-built Flask dashboard theme (
 To maintain security and flexibility, sensitive information and configurable parameters should not be hardcoded into the application's source code.
 
 Store API keys (Lever), Notion integration tokens, target school names, the target city (NYC), keywords for PM titles, and any other configurable settings in a separate configuration file (e.g., a .env file, a config.ini file, or a Python module like config.py).
+User-defined preferences (as detailed in 3.1.4 and the UserPreferences table in 5.3) will also be managed here, loaded at runtime, and editable via the application interface.
 The application should load these configurations at runtime. This practice makes it easier to update settings without modifying the core codebase and protects sensitive credentials.
 Table 3: Technology Stack Overview
 
@@ -256,7 +280,7 @@ Job Board API - Lever	Python requests library	Standard for HTTP requests; direct
 Job Board API - Greenhouse	Python requests library	Standard for HTTP requests; direct interaction with official API.	-
 Data Export - Notion	Notion API Client (if available) / Python requests	Official or well-supported client simplifies interaction; requests for direct control.	-
 Data Export - Text File	Python built-in file I/O	Standard library functions for writing to text files are sufficient and straightforward.	-
-Local Dashboard UI	Python Streamlit	Rapid UI development for data-centric apps, many built-in components.	Python Flask (more flexible, higher dev effort for UI) 
+Local Dashboard UI	Python Streamlit	Rapid UI development for data-centric apps, many built-in components.	Python Flask (more flexible, higher dev effort for UI, better for API-first approach supporting multiple clients)
 Core Logic/Orchestration	Python	Primary language for all components, rich ecosystem of libraries.	-
 HTML Parsing	Python BeautifulSoup4	Robust and widely used for parsing HTML/XML content.	lxml (faster, but steeper learning curve for some)
 Local Data Cache (Optional)	SQLite / CSV files	Lightweight local storage; SQLite for structured queries.	JSON files
@@ -298,12 +322,20 @@ Future Considerations & Potential Enhancements
 Once the core functionality of the Research Agent is established and proven useful, several enhancements could be considered for future iterations:
 
 8.1. Expanded Data Sources: Integrate with other professional networking platforms (if APIs or ethical scraping methods are available), company review websites (e.g., Glassdoor for company culture insights), or tech news aggregators/blogs to gather timely information about target companies (e.g., funding rounds, new product launches).
-8.2. Advanced Filtering Capabilities: Introduce more granular filtering options for leads, such as filtering by specific skills (if deeper profile scraping is implemented and skills data becomes reliably available), years of experience, or company funding stage.
+8.2. Advanced Filtering Capabilities: Introduce more granular filtering options for leads, such as filtering by specific skills (if deeper profile scraping is implemented and skills data becomes reliably available), years of experience, or company funding stage, leveraging the UserPreferences model.
 8.3. Automated Profile Summarization: Employ basic Natural Language Processing (NLP) techniques to generate concise summaries of lengthy LinkedIn profiles or to automatically extract key skills, technologies, or themes mentioned in profile descriptions.
 8.4. Enhanced Tracking and Workflow Integration: Deepen the integration with Notion or potentially a calendar application to allow for tracking outreach attempts, setting reminders for follow-ups, and logging responses directly from the tool's dashboard or through a more seamless workflow.
 8.5. Trend Analysis: If the tool collects data consistently over time (and stores it appropriately), it could incorporate features to analyze trends, such as identifying which companies are most actively hiring product managers in NYC, or which skills are increasingly mentioned in job descriptions.
 8.6. Support for More Job Boards: Expand job board integrations beyond Lever and Greenhouse to include APIs from other popular platforms like Workable, Indeed, or LinkedIn Jobs (if a suitable API or scraping method is identified).
-8.7. "Smart" Suggestions and Lead Scoring: Implement a basic recommendation engine that, based on user activity (e.g., which leads are pursued, which job types are favored) or successful past interactions, suggests similar profiles, companies, or job opportunities. A simple lead scoring mechanism could also help prioritize leads.
+8.7. "Smart" Suggestions and Lead Scoring: Implement a basic recommendation engine that, based on user activity (e.g., which leads are pursued, which job types are favored) or successful past interactions, suggests similar profiles, companies, or job opportunities. A simple lead scoring mechanism could also help prioritize leads based on UserPreferences.
+8.8. Networking Message Assistance:
+  - Develop backend capabilities to store message templates and generate personalized message drafts for networking outreach. These drafts would be based on the user's own profile data (once integrated), the discovered lead's information, and the user's defined networking goals and preferences.
+  - This service would be designed to be consumed by the web application and any future browser extension, providing suggestions and assistance rather than fully automated messaging.
+8.9. Browser Extension Integration:
+  - Design and develop a browser extension (e.g., for Chrome, Firefox) to provide in-context lead information directly on platforms like LinkedIn.
+  - The extension could allow for quick actions such as saving a profile to the internal lead database, viewing existing notes or status for a viewed profile, and accessing the Networking Message Assistance feature to help draft communications.
+  - This would require the backend APIs to be robust and secure for external client consumption.
+
 Risks & Mitigation Strategies
 Several risks are associated with the development and operation of the Research Agent. Proactive mitigation strategies are essential.
 

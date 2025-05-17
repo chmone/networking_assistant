@@ -11,6 +11,7 @@ from starlette.responses import JSONResponse
 from fastapi import status
 import uuid
 from contextlib import asynccontextmanager # Import asynccontextmanager
+from starlette.middleware.sessions import SessionMiddleware # Added
 
 # Adjust path to import from other top-level directories (config, database, etc.)
 # This assumes api_main.py is in src/web_app/
@@ -18,6 +19,9 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 src_path = os.path.abspath(os.path.join(current_dir, '..'))
 if src_path not in sys.path:
     sys.path.insert(0, src_path)
+
+# Import settings from the new core config
+from src.core.config import settings # Added
 
 try:
     from config.config_manager import ConfigManager
@@ -45,16 +49,23 @@ config_file_path = os.path.abspath(os.path.join(src_path, '..', '.env'))
 
 # Initialize global components (consider dependency injection frameworks for larger apps)
 # These might raise exceptions on init failure, handled by FastAPI startup events later if needed
-config_manager = ConfigManager(env_file_path=config_file_path)
-db_manager = DatabaseManager(config=config_manager)
+# config_manager = ConfigManager(env_file_path=config_file_path) # Old config
+# db_manager = DatabaseManager(config=config_manager) # Old config
+
+# Use the new settings object for configuration
+# db_manager = DatabaseManager(db_url=settings.SQLALCHEMY_DATABASE_URL) # Example if using new settings for DB
+# For now, db_manager might still use its own config or needs update if it depends on ConfigManager
+# We will assume db_manager and config_manager are handled or will be updated separately if they use the old system.
+# The critical part for OAuth is that `settings.SESSION_SECRET_KEY` is available.
 
 # --- Lifespan Context Manager ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # --- Startup Logic ---
     logger.info("FastAPI application startup...")
-    # Configure logging (could read level/format from config_manager)
-    log_level_str = config_manager.get_config("LOG_LEVEL", "INFO").upper()
+    # Configure logging (could read level/format from config_manager or settings)
+    log_level_str = os.getenv("LOG_LEVEL", "INFO").upper() # Example: get from env or settings
+    # log_level_str = settings.LOG_LEVEL.upper() # If LOG_LEVEL is added to Settings
     log_level = getattr(logging, log_level_str, logging.INFO)
     logging.basicConfig(
         level=log_level,
@@ -109,6 +120,15 @@ app.add_middleware(
     allow_methods=["*"], # Allows all methods (GET, POST, etc.)
     allow_headers=["*"], # Allows all headers
 )
+
+# Add SessionMiddleware - MUST be before routers that use sessions
+if settings.SESSION_SECRET_KEY:
+    app.add_middleware(
+        SessionMiddleware,
+        secret_key=settings.SESSION_SECRET_KEY
+    )
+else:
+    logger.warning("SESSION_SECRET_KEY not set. LinkedIn OAuth flow will not work correctly as sessions are required.")
 
 # --- Dependency Injection / Session Management ---
 def get_db() -> Session:
@@ -177,6 +197,10 @@ app.include_router(jobs.router, prefix="/api/v1/jobs", tags=["Job Postings"])
 # from .routers import generation_router # Old import
 from src.web_app.routers import generation_router # New import style
 app.include_router(generation_router.router, prefix="/api/v1/generation", tags=["Lead Generation"])
+
+# Include the new Authentication router
+from src.web_app.routers import auth_router # Added
+app.include_router(auth_router.router) # Added, prefix is defined in the router itself
 
 # --- Main execution (for running with uvicorn) ---
 # Typically you run FastAPI apps with: uvicorn src.web_app.api_main:app --reload

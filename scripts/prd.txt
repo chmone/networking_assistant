@@ -8,6 +8,11 @@ This project, the "Personal Networking Hub Web Application," aims to build a sof
   - Why it's important: Provides secure access to the user's foundational professional data, which can then be used by the application to offer personalized insights and assistance. This is the most robust and ToS-compliant method for accessing user-specific data.
   - How it works at a high level: Implements the LinkedIn OAuth 2.0 authorization flow. Uses the obtained access token to make requests to relevant LinkedIn Profile APIs.
 
+- User Networking Goals & Preferences
+  - What it does: Allows the user to define, store, and manage their specific networking and job search preferences (e.g., target roles, industries, company stages, desired locations, key skills to look for or match against).
+  - Why it's important: Enables the application to personalize discovery, tailor contextual insights, and refine lead generation based on the user's explicit goals, making the assistant more effective.
+  - How it works at a high level: User inputs preferences via the web application. These are stored in the internal database and used by various modules (data acquisition, curation, insight generation) to filter and prioritize information.
+
 - LinkedIn Data Acquisition (Broader Discovery - Alumni & NYC PMs)
   - What it does: Optionally, automatically searches and extracts public data from LinkedIn profiles of alumni from Questrom and University School, as well as Product Managers working in New York City. Key data includes name, profile URL, current role, company, and location. This is for general discovery, separate from the authenticated user's direct profile data.
   - Why it's important: This can supplement the user's network with new potential contacts based on broader criteria.
@@ -22,8 +27,8 @@ This project, the "Personal Networking Hub Web Application," aims to build a sof
   - What it does: Provides a user interface for the user to view their profile insights, manage discovered leads, and interact with other application features.
   - Why it's important: This is the primary way the user will interact with and benefit from the application.
   - How it works at a high level:
-    - Backend: A Python web framework (e.g., Flask, FastAPI) will expose API endpoints. These endpoints will handle OAuth, interact with LinkedIn APIs, query the internal database, and return data.
-    - Frontend: Built using Streamlit (for rapid development) or a custom HTML/CSS/JavaScript stack. It will consume data from the backend API and present it in tables, allow filtering, and potentially allow status updates/note-taking directly.
+    - Backend: A Python web framework (e.g., Flask, FastAPI) will expose a comprehensive set of API endpoints designed to serve the initial web application and be extensible for future clients, including a more advanced web dashboard and a browser extension. These endpoints will handle OAuth, interact with LinkedIn APIs, query the internal database, and return data.
+    - Frontend: Built using Streamlit (for rapid development) or a custom HTML/CSS/JavaScript stack. It will consume data from the backend API and present it in tables, allow filtering, and provide lead management functionalities such as status tracking (e.g., contacted, replied), adding notes, and prioritization/tagging.
 
 - Company Page Information Retrieval (for Discovered Leads)
   - What it does: Optionally fetches basic public information about a *discovered lead's* current company (not necessarily the authenticated user's company, unless they are also a lead).
@@ -50,14 +55,14 @@ This project, the "Personal Networking Hub Web Application," aims to build a sof
 
 # User Experience
 - User Personas:
-  - The primary user is a proactive individual seeking to leverage their own LinkedIn profile and network effectively, and discover new relevant contacts.
+  - The primary user is a proactive individual seeking to leverage their own LinkedIn profile, define specific networking goals, and network effectively, and discover new relevant contacts based on those goals.
 - Key User Flows:
   - Authentication: User securely logs in with their LinkedIn account via OAuth 2.0.
   - Profile View & Insights: Application displays the user's own LinkedIn profile data fetched via API, potentially with derived insights.
   - Automated Discovery (Optional): User initiates a discovery run for alumni or NYC PMs.
     - (Process similar to before, but clearly distinct from user's own data access)
   - Lead Review & Management (Web Application):
-    - (Content largely similar, applies to discovered leads and user's own data context)
+    - User reviews discovered leads and their own contextualized data, with capabilities to track status (e.g., contacted, replied, meeting scheduled), add notes, and prioritize or tag leads within the web application.
   - Action & Outreach: User utilizes insights from their own profile and discovered leads.
 - UI/UX Considerations (Web Application):
   - (Content largely unchanged)
@@ -95,6 +100,14 @@ This project, the "Personal Networking Hub Web Application," aims to build a sof
     - summary: Text
     - (Structured fields for experience, education, skills, etc., possibly as JSON or separate related tables)
     - last_api_sync: Datetime
+  - UserPreferences Table:
+    - user_id: String (Foreign Key to UserProfile, Primary Key)
+    - target_roles: JSON or Text (List of target job titles)
+    - target_industries: JSON or Text (List of target industries)
+    - target_company_stages: JSON or Text (e.g., startup, Series B, public)
+    - target_locations: JSON or Text (List of preferred locations)
+    - keywords_for_matching: JSON or Text (Skills or topics to prioritize)
+    - last_updated: Datetime
   - Lead Table:
     - (Schema remains similar, but clearly for *discovered* leads. May link to UserProfile if a lead is a connection of the user.)
   - (CompanyTable, JobPostingTable remain similar)
@@ -140,6 +153,10 @@ This project, the "Personal Networking Hub Web Application," aims to build a sof
 
 - Future Enhancements (Phase 3 - Advanced Features & Refinements):
   - (Content largely similar, but features might leverage both user's API-sourced data and discovered leads)
+  - Networking Message Assistance:
+    - Develop backend capabilities to store message templates and generate personalized message drafts for networking outreach, based on the user's profile, lead data, and defined preferences. This service can be consumed by the web application and future browser extension.
+  - Browser Extension Integration:
+    - Design and develop a browser extension to provide in-context lead information, facilitate quick actions (e.g., saving a profile to the lead database), and leverage messaging assistance features directly on platforms like LinkedIn.
 
 # Logical Dependency Chain
 - Foundation - User Authentication & Core Profile Data:

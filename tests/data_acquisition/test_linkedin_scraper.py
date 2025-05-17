@@ -244,7 +244,7 @@ class TestLinkedInScraperScrapeAlumni:
     @pytest.fixture
     def scraper_no_key(self, mock_config_manager_no_key):
         return LinkedInScraper(config_manager=mock_config_manager_no_key)
-    
+
     def test_scrape_alumni_no_api_key_no_client(self, scraper_no_key, caplog):
         # _make_serpapi_search will not be called as client is None
         results = scraper_no_key.scrape_alumni_by_school("Test School")
@@ -330,10 +330,10 @@ class TestLinkedInScraperScrapePMs:
 # ... (WebDriver tests remain the same) ...
 
 class TestLinkedInScraperParseResults:
-    @pytest.fixture 
+    @pytest.fixture
     def mock_config_for_parsing_tests(self, mock_config_manager_no_key):
         return mock_config_manager_no_key
-        
+
     @pytest.fixture
     def scraper(self, mock_config_for_parsing_tests): 
         return LinkedInScraper(config_manager=mock_config_for_parsing_tests)
